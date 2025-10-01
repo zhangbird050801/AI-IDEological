@@ -103,7 +103,7 @@ source .venv/bin/activate  # Linux/Mac
 
 3. 安装依赖
 ```sh
-uv add pyproject.toml
+uv sync
 ```
 
 4. 启动服务
