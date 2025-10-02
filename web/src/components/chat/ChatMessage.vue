@@ -289,6 +289,101 @@ function renderMarkdown(content) {
   text-align: right;
 }
 
+/* ---- 表格响应式支持 ---- */
+/* 在父元素上创建一个块格式化上下文，并让表格可以横向滚动 */
+.message-text :deep(table) {
+  display: block;
+  overflow-x: auto;
+  white-space: nowrap; /* 防止表格内容在滚动时换行 */
+  margin-top: 1em;
+  margin-bottom: 1em;
+}
+
+/* ---- 表格整体样式 ---- */
+.message-text :deep(table) {
+  width: 100%;
+  border-collapse: collapse; /* 合并边框 */
+  border-spacing: 0;
+  font-size: 0.9em; /* 表格字体可以稍小一些 */
+}
+
+/* ---- 表头和单元格样式 ---- */
+.message-text :deep(th),
+.message-text :deep(td) {
+  border: 1px solid var(--n-border-color, #e0e0e6); /* 使用Naive UI的边框颜色变量，或一个备用色 */
+  padding: 10px 14px; /* 单元格内边距 */
+  text-align: left; /* 文本左对齐 */
+}
+
+/* ---- 表头特殊样式 ---- */
+.message-text :deep(th) {
+  font-weight: 600;
+  background-color: var(--n-color-hover, #f6f6f7); /* 使用Naive UI的悬浮颜色变量 */
+}
+
+/* ---- 斑马条纹 ---- */
+/* 使表格更易读 */
+.message-text :deep(tbody tr:nth-child(even)) {
+  background-color: #fcfcfc;
+}
+
+.message-text :deep(hr) {
+  /* 核心：调整分割线与上下文的垂直间距 */
+  margin-top: 25px;    /* 增加上边距，例如 20px */
+  margin-bottom: 25px; /* 增加下边距，例如 20px */
+
+  /* 可选：美化分割线本身 */
+  border: none; /* 移除浏览器默认的边框和效果 */
+  height: 3px;  /* 设置线条的高度（即粗细） */
+  background-color: var(--n-border-color, #e0e0e6); /* 设置线条的颜色 */
+}
+
+/* ---- 各级标题的字体大小 ---- */
+
+/* 一级标题 H1 (#) */
+.message-text :deep(h1) {
+  font-size: 2em; /* 字体大小，大约是普通文本的2倍 */
+  padding-bottom: 0.3em;
+  border-bottom: 1px solid var(--n-border-color, #e0e0e6); /* 可选：添加一条下划线，类似GitHub风格 */
+}
+
+/* 二级标题 H2 (##) */
+.message-text :deep(h2) {
+  font-size: 1.7em; /* 字体大小，大约是普通文本的1.7倍 */
+  padding-bottom: 0.3em;
+  border-bottom: 1px solid var(--n-border-color, #e0e0e6); /* 可选：添加一条下划线 */
+}
+
+/* 三级标题 H3 (###) */
+.message-text :deep(h3) {
+  font-size: 1.4em; /* 字体大小，大约是普通文本的1.4倍 */
+}
+
+/* 四级标题 H4 (####) */
+.message-text :deep(h4) {
+  font-size: 1.2em; /* 字体大小，大约是普通文本的1.2倍 */
+}
+
+/* 五级标题 H5 (#####) */
+.message-text :deep(h5) {
+  font-size: 1.1em;
+}
+
+/* 六级标题 H6 (######) */
+.message-text :deep(h6) {
+  font-size: 1em; /* 和正文一样大，但更粗 */
+}
+
+/* 如果标题是消息的第一个元素，则移除多余的上边距，让布局更紧凑 */
+.message-text :deep(h1:first-child),
+.message-text :deep(h2:first-child),
+.message-text :deep(h3:first-child),
+.message-text :deep(h4:first-child),
+.message-text :deep(h5:first-child),
+.message-text :deep(h6:first-child) {
+    margin-top: 0;
+}
+
 /* 响应式设计 */
 @media (max-width: 768px) {
   .chat-message {
