@@ -7,22 +7,26 @@
         </n-icon>
         <span>AIGC思政案例生成助手</span>
       </div>
-      
+
       <div class="header-actions">
         <n-space>
           <n-tooltip trigger="hover">
             <template #trigger>
               <n-button size="small" quaternary circle @click="toggleSettings">
-                <template #icon><n-icon color="white"><Icon icon="ant-design:setting-outlined" /></n-icon></template>
+                <template #icon
+                  ><n-icon color="white"><Icon icon="ant-design:setting-outlined" /></n-icon
+                ></template>
               </n-button>
             </template>
             生成设置
           </n-tooltip>
-          
+
           <n-tooltip trigger="hover">
             <template #trigger>
               <n-button size="small" quaternary circle @click="exportChat">
-                <template #icon><n-icon color="white"><Icon icon="ant-design:export-outlined" /></n-icon></template>
+                <template #icon
+                  ><n-icon color="white"><Icon icon="ant-design:export-outlined" /></n-icon
+                ></template>
               </n-button>
             </template>
             导出对话
@@ -30,7 +34,7 @@
         </n-space>
       </div>
     </div>
-    
+
     <div ref="messagesContainer" class="messages-container">
       <div v-if="messages.length === 0" class="empty-state">
         <div class="empty-icon">
@@ -40,7 +44,7 @@
         </div>
         <h3>开始您的思政案例生成之旅</h3>
         <p>描述您的课程内容和思政需求，AI将为您生成高质量的教学案例</p>
-        
+
         <!-- <div class="quick-start">
           <n-space vertical>
             <h4>快速开始示例：</h4>
@@ -56,7 +60,7 @@
           </n-space>
         </div> -->
       </div>
-      
+
       <div v-else class="messages-list">
         <ChatMessage
           v-for="message in messages"
@@ -66,7 +70,7 @@
           @regenerate="handleRegenerate"
           @save-case="handleSaveCase"
         />
-        
+
         <!-- 加载状态 -->
         <div v-if="isGenerating" class="generating-indicator">
           <div class="loading-avatar">
@@ -86,7 +90,7 @@
         </div>
       </div>
     </div>
-    
+
     <!-- 生成设置抽屉 -->
     <n-drawer v-model:show="showSettings" width="400" placement="right">
       <n-drawer-content title="生成设置">
@@ -104,7 +108,7 @@
                   :marks="{ 0: '保守', 0.5: '平衡', 1: '创新' }"
                 />
               </div>
-              
+
               <div>
                 <n-text depth="2">最大长度</n-text>
                 <n-input-number
@@ -117,7 +121,7 @@
               </div>
             </n-space>
           </div>
-          
+
           <div>
             <n-text strong>案例偏好</n-text>
             <n-space vertical size="medium" style="margin-top: 12px">
@@ -132,7 +136,7 @@
             </n-space>
           </div>
         </n-space>
-        
+
         <template #footer>
           <n-space>
             <n-button @click="resetSettings">重置</n-button>
@@ -146,19 +150,34 @@
 
 <script setup>
 import { ref, nextTick, onMounted, onUnmounted } from 'vue'
-import { NIcon, NButton, NSpace, NTooltip, NAvatar, NSkeleton, NDrawer, NDrawerContent, NText, NSlider, NInputNumber, NCheckboxGroup, NCheckbox, useMessage } from 'naive-ui'
+import {
+  NIcon,
+  NButton,
+  NSpace,
+  NTooltip,
+  NAvatar,
+  NSkeleton,
+  NDrawer,
+  NDrawerContent,
+  NText,
+  NSlider,
+  NInputNumber,
+  NCheckboxGroup,
+  NCheckbox,
+  useMessage,
+} from 'naive-ui'
 import { Icon } from '@iconify/vue'
 import ChatMessage from './ChatMessage.vue'
 
 const props = defineProps({
   messages: {
     type: Array,
-    default: () => []
+    default: () => [],
   },
   isGenerating: {
     type: Boolean,
-    default: false
-  }
+    default: false,
+  },
 })
 
 const emit = defineEmits(['use-example', 'regenerate', 'save-case'])
@@ -171,7 +190,7 @@ const showSettings = ref(false)
 const settings = ref({
   temperature: 0.7,
   maxTokens: 1000,
-  preferences: ['practical', 'ethical']
+  preferences: ['practical', 'ethical'],
 })
 
 // 快速开始示例
@@ -179,18 +198,19 @@ const quickExamples = ref([
   {
     id: 1,
     title: '软件测试中的质量意识',
-    content: '请为软件测试章节生成一个思政案例，强调质量意识和精益求精的工匠精神，结合实际测试项目经验。'
+    content:
+      '请为软件测试章节生成一个思政案例，强调质量意识和精益求精的工匠精神，结合实际测试项目经验。',
   },
   {
     id: 2,
     title: '敏捷开发中的团队协作',
-    content: '生成一个关于敏捷开发的思政案例，重点体现团队协作、有效沟通和集体责任感。'
+    content: '生成一个关于敏捷开发的思政案例，重点体现团队协作、有效沟通和集体责任感。',
   },
   {
     id: 3,
     title: '软件安全与社会责任',
-    content: '创建一个软件安全相关的思政案例，突出程序员的社会责任和职业道德。'
-  }
+    content: '创建一个软件安全相关的思政案例，突出程序员的社会责任和职业道德。',
+  },
 ])
 
 // 滚动到底部
@@ -204,11 +224,14 @@ function scrollToBottom() {
 
 // 复制消息
 function handleCopyMessage(content) {
-  navigator.clipboard.writeText(content).then(() => {
-    message.success('已复制到剪贴板')
-  }).catch(() => {
-    message.error('复制失败')
-  })
+  navigator.clipboard
+    .writeText(content)
+    .then(() => {
+      message.success('已复制到剪贴板')
+    })
+    .catch(() => {
+      message.error('复制失败')
+    })
 }
 
 // 重新生成
@@ -232,12 +255,14 @@ function exportChat() {
     message.warning('没有对话内容可导出')
     return
   }
-  
-  const chatContent = props.messages.map(msg => {
-    const role = msg.role === 'user' ? '教师' : 'AIGC助手'
-    return `${role}: ${msg.content}`
-  }).join('\n\n')
-  
+
+  const chatContent = props.messages
+    .map((msg) => {
+      const role = msg.role === 'user' ? '教师' : 'AIGC助手'
+      return `${role}: ${msg.content}`
+    })
+    .join('\n\n')
+
   const blob = new Blob([chatContent], { type: 'text/plain;charset=utf-8' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
@@ -245,7 +270,7 @@ function exportChat() {
   a.download = `思政案例对话_${new Date().toLocaleDateString()}.txt`
   a.click()
   URL.revokeObjectURL(url)
-  
+
   message.success('对话已导出')
 }
 
@@ -254,7 +279,7 @@ function resetSettings() {
   settings.value = {
     temperature: 0.7,
     maxTokens: 1000,
-    preferences: ['practical', 'ethical']
+    preferences: ['practical', 'ethical'],
   }
   message.info('设置已重置')
 }
@@ -276,7 +301,7 @@ onMounted(() => {
   if (savedSettings) {
     settings.value = { ...settings.value, ...JSON.parse(savedSettings) }
   }
-  
+
   // 设置滚动观察器
   if (messagesContainer.value) {
     observer = new MutationObserver(() => {
@@ -295,7 +320,7 @@ onUnmounted(() => {
 // 暴露方法
 defineExpose({
   scrollToBottom,
-  getSettings: () => settings.value
+  getSettings: () => settings.value,
 })
 </script>
 
@@ -420,8 +445,12 @@ defineExpose({
 }
 
 @keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* 滚动条样式 */
@@ -465,19 +494,19 @@ defineExpose({
   .chat-header {
     padding: 12px 16px;
   }
-  
+
   .header-title {
     font-size: 14px;
   }
-  
+
   .messages-list {
     padding: 16px;
   }
-  
+
   .empty-state {
     padding: 20px 16px;
   }
-  
+
   .quick-start {
     padding: 16px;
   }

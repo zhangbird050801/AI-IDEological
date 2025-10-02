@@ -78,12 +78,15 @@ export const usePermissionStore = defineStore('permission', {
   actions: {
     async generateRoutes() {
       const res = await api.getUserMenu() // 调用接口获取后端传来的菜单路由
-      this.accessRoutes = buildRoutes(res.data) // 处理成前端路由格式
+      // Support multiple possible shapes: plain array, { data: [...] }, or envelope { code, data }
+      const menuPayload = Array.isArray(res) ? res : res && (res.data ?? res)
+
+      this.accessRoutes = buildRoutes(menuPayload || []) // 处理成前端路由格式
       return this.accessRoutes
     },
     async getAccessApis() {
       const res = await api.getUserApi()
-      this.accessApis = res.data
+      this.accessApis = res?.data ?? res ?? []
       return this.accessApis
     },
     resetPermission() {

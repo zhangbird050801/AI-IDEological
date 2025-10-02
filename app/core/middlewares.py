@@ -82,6 +82,11 @@ class HttpAuditLogMiddleware(BaseHTTPMiddleware):
         return args
 
     async def get_response_body(self, request: Request, response: Response) -> Any:
+        content_type = (response.headers.get("content-type") or "").lower()
+        transfer_encoding = (response.headers.get("transfer-encoding") or "").lower()
+        if "text/event-stream" in content_type or "chunked" in transfer_encoding:
+            return {"streaming": True}
+
         # 检查Content-Length
         content_length = response.headers.get("content-length")
         if content_length and int(content_length) > self.max_body_size:
@@ -140,7 +145,8 @@ class HttpAuditLogMiddleware(BaseHTTPMiddleware):
                 and request.method in route.methods
             ):
                 data["module"] = ",".join(route.tags)
-                data["summary"] = route.summary
+                # data["summary"] = route.summary
+                data["summary"] = route.summary or f"{request.method} {request.url.path}"
         # 获取用户信息
         try:
             token = request.headers.get("token")

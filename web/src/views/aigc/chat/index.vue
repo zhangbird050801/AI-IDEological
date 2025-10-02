@@ -17,7 +17,7 @@
           </div>
         </div>
       </div> -->
-      
+
       <div class="chat-layout">
         <div class="chat-main">
           <ChatContainer
@@ -28,7 +28,7 @@
             @regenerate="handleRegenerate"
             @save-case="handleSaveCase"
           />
-          
+
           <div class="input-section">
             <ChatInput
               ref="chatInput"
@@ -38,13 +38,13 @@
             />
           </div>
         </div>
-        
+
         <div class="sidebar">
           <n-card title="生成历史" size="small">
             <div v-if="chatHistory.length === 0" class="empty-history">
               <n-empty size="small" description="暂无历史记录" />
             </div>
-            
+
             <div v-else class="history-list">
               <div
                 v-for="session in chatHistory"
@@ -57,28 +57,32 @@
                 <div class="history-time">{{ formatTime(session.createdAt) }}</div>
               </div>
             </div>
-            
+
             <template #action>
-              <n-button size="small" text @click="showAllHistory">
-                查看全部
-              </n-button>
+              <n-button size="small" text @click="showAllHistory"> 查看全部 </n-button>
             </template>
           </n-card>
-          
+
           <n-card title="快捷操作" size="small" style="margin-top: 16px">
             <n-space vertical>
               <n-button size="small" block @click="showCaseLibrary">
-                <template #icon><n-icon><Icon icon="ant-design:library-outlined" /></n-icon></template>
+                <template #icon
+                  ><n-icon><Icon icon="ant-design:library-outlined" /></n-icon
+                ></template>
                 案例库
               </n-button>
-              
+
               <n-button size="small" block @click="showPromptTemplates">
-                <template #icon><n-icon><Icon icon="ant-design:book-outlined" /></n-icon></template>
+                <template #icon
+                  ><n-icon><Icon icon="ant-design:book-outlined" /></n-icon
+                ></template>
                 提示词模板
               </n-button>
-              
+
               <n-button size="small" block @click="exportCurrentChat">
-                <template #icon><n-icon><Icon icon="ant-design:export-outlined" /></n-icon></template>
+                <template #icon
+                  ><n-icon><Icon icon="ant-design:export-outlined" /></n-icon
+                ></template>
                 导出对话
               </n-button>
             </n-space>
@@ -91,11 +95,21 @@
 
 <script setup>
 import { ref, reactive, onMounted, nextTick, watch } from 'vue'
-import { NSpace, NStatistic, NCard, NEmpty, NButton, NIcon, useMessage, useLoadingBar } from 'naive-ui'
+import {
+  NSpace,
+  NStatistic,
+  NCard,
+  NEmpty,
+  NButton,
+  NIcon,
+  useMessage,
+  useLoadingBar,
+} from 'naive-ui'
 import { Icon } from '@iconify/vue'
 import AppPage from '@/components/page/AppPage.vue'
 import ChatContainer from '@/components/chat/ChatContainer.vue'
 import ChatInput from '@/components/chat/ChatInput.vue'
+import { chatAPI, chatStream } from '@/api/aigc'
 
 // 响应式数据
 const message = useMessage()
@@ -118,39 +132,105 @@ const chatHistory = ref([])
 
 // 处理发送消息
 async function handleSendMessage(data) {
-  console.log('handleSendMessage called with:', data)
-  
   const userMessage = {
     id: Date.now(),
     role: 'user',
     content: data.content,
     attachments: data.attachments,
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   }
-  
+
   messages.value.push(userMessage)
   isGenerating.value = true
   loadingBar.start()
-  
-  console.log('User message added, messages array:', messages.value)
-  
+
   try {
-    // 模拟API调用
-    await simulateAIResponse(data.content)
-    
-    console.log('AI response completed successfully')
-    loadingBar.finish()
-    todayGenerated.value++
-    totalCases.value++
-    
-    // 保存到历史记录
-    saveToHistory()
-    
+    const msgArr = [
+      { role: 'system', content: 'You are a helpful assistant.' },
+      ...messages.value.map((m) => ({ role: m.role, content: m.content })),
+    ]
+
+    // Create placeholder assistant message for streaming (make reactive so nested updates trigger)
+    const assistantMessage = reactive({
+      id: Date.now() + 1,
+      role: 'assistant',
+      content: '',
+      timestamp: new Date().toISOString(),
+      isStreaming: true,
+    })
+    messages.value.push(assistantMessage)
+
+    // Try stream first
+    const iterator = chatStream(msgArr)
+    try {
+      for await (const item of iterator) {
+        // item is { type: 'chunk'|'text', payload: ... }
+        let textToAppend = ''
+        try {
+          if (item && item.type === 'chunk' && item.payload) {
+            const obj = item.payload
+            if (obj.choices && Array.isArray(obj.choices)) {
+              for (const c of obj.choices) {
+                if (c && c.delta) {
+                  // prefer delta.content, fallback to reasoning_content
+                  if (typeof c.delta.content === 'string' && c.delta.content.length > 0) {
+                    textToAppend += c.delta.content
+                  } else if (
+                    typeof c.delta.reasoning_content === 'string' &&
+                    c.delta.reasoning_content.length > 0
+                  ) {
+                    textToAppend += c.delta.reasoning_content
+                  }
+                }
+              }
+            } else if (typeof obj.data === 'string') {
+              textToAppend += obj.data
+            }
+          } else if (item && item.type === 'text') {
+            textToAppend += String(item.payload)
+          } else {
+            // unknown shape, stringify
+            textToAppend += JSON.stringify(item)
+          }
+        } catch (e) {
+          textToAppend = String(item)
+        }
+        if (textToAppend) {
+          assistantMessage.content += textToAppend
+          messages.value = [...messages.value]
+          await nextTick()
+          chatContainer.value?.scrollToBottom()
+        }
+      }
+      // stream finished
+      assistantMessage.isStreaming = false
+      loadingBar.finish()
+      todayGenerated.value++
+      totalCases.value++
+      saveToHistory()
+    } catch (streamErr) {
+      console.error('Stream error, falling back to non-streaming:', streamErr)
+      // remove streaming placeholder
+      const idx = messages.value.findIndex((m) => m.id === assistantMessage.id)
+      if (idx >= 0) messages.value.splice(idx, 1)
+      // fallback to non-streaming API
+      const res = await chatAPI(msgArr)
+      const finalReply = (res && (res.reply ?? res.data?.reply)) || ''
+      messages.value.push({
+        id: Date.now() + 2,
+        role: 'assistant',
+        content: finalReply,
+        timestamp: new Date().toISOString(),
+      })
+      loadingBar.finish()
+      todayGenerated.value++
+      totalCases.value++
+      saveToHistory()
+    }
   } catch (error) {
     console.error('生成失败:', error)
     message.error('生成失败，请重试')
     loadingBar.error()
-    
     // 如果出错，移除可能添加的空消息
     const lastMessage = messages.value[messages.value.length - 1]
     if (lastMessage && lastMessage.role === 'assistant' && !lastMessage.content) {
@@ -158,81 +238,17 @@ async function handleSendMessage(data) {
     }
   } finally {
     isGenerating.value = false
-    console.log('Message sending completed, isGenerating:', isGenerating.value)
   }
 }
 
-// 模拟AI响应
-async function simulateAIResponse(userInput) {
-  const assistantMessage = {
-    id: Date.now() + 1,
-    role: 'assistant',
-    content: '',
-    timestamp: new Date().toISOString(),
-    isStreaming: true
-  }
-  
-  messages.value.push(assistantMessage)
-  
-  // 模拟流式响应
-  const response = generateMockResponse(userInput)
-  const words = response.split('')
-  
-  for (let i = 0; i < words.length; i++) {
-    await new Promise(resolve => setTimeout(resolve, 20))
-    assistantMessage.content += words[i]
-    
-    if (i % 50 === 0 || i === words.length - 1) {
-      const messageIndex = messages.value.findIndex(msg => msg.id === assistantMessage.id)
-      if (messageIndex !== -1) {
-        messages.value[messageIndex] = { ...assistantMessage }
-      }
-    }
-  }
-  
-  assistantMessage.isStreaming = false
-  const messageIndex = messages.value.findIndex(msg => msg.id === assistantMessage.id)
-  if (messageIndex !== -1) {
-    messages.value[messageIndex] = { ...assistantMessage }
-  }
-}
-
-// 生成模拟响应
-function generateMockResponse(input) {
-  return `基于您的需求"${input.substring(0, 50)}..."，我为您生成以下思政案例：
-
-**案例标题：** 软件质量与工匠精神
-
-**背景介绍：**
-在某互联网公司的软件开发项目中，开发团队面临着紧急上线的压力。项目经理要求团队加快开发进度，但测试工程师小李坚持认为需要进行充分的测试，确保软件质量。
-
-**核心问题：**
-在时间压力和质量要求之间，团队应该如何平衡？作为软件工程师，我们的职业操守是什么？
-
-**思政启示：**
-1. **精益求精的工匠精神**：软件开发不仅是技术活动，更是品质的体现
-2. **职业道德与责任**：程序员应该对用户负责，对社会负责
-3. **团队协作与沟通**：在分歧中寻求最佳解决方案
-
-**讨论问题：**
-1. 如何在项目压力下坚持质量标准？
-2. 软件工程师的社会责任体现在哪些方面？
-3. 如何培养和传承工匠精神？
-
-**实践应用：**
-结合实际项目经验，讨论质量管理体系的重要性。`
-}
-
-// 使用示例
 function handleUseExample(content) {
   chatInput.value?.focus()
-  // 这里可以直接触发发送，或者填充到输入框
   handleSendMessage({ content, attachments: [] })
 }
 
 // 重新生成
 function handleRegenerate(messageId) {
-  const messageIndex = messages.value.findIndex(msg => msg.id === messageId)
+  const messageIndex = messages.value.findIndex((msg) => msg.id === messageId)
   if (messageIndex > 0) {
     const userMessage = messages.value[messageIndex - 1]
     // 移除原有的AI回复
@@ -260,19 +276,20 @@ function saveToHistory() {
     const session = {
       id: currentSessionId.value || Date.now(),
       title: messages.value[0].content.substring(0, 30) + '...',
-      messages: [...messages.value],
-      createdAt: new Date().toISOString()
+      // store plain objects (avoid reactive proxies)
+      messages: messages.value.map((m) => ({ ...m })),
+      createdAt: new Date().toISOString(),
     }
-    
-    const existingIndex = chatHistory.value.findIndex(s => s.id === session.id)
+
+    const existingIndex = chatHistory.value.findIndex((s) => s.id === session.id)
     if (existingIndex >= 0) {
       chatHistory.value[existingIndex] = session
     } else {
       chatHistory.value.unshift(session)
     }
-    
+
     currentSessionId.value = session.id
-    
+
     // 限制历史记录数量
     if (chatHistory.value.length > 20) {
       chatHistory.value = chatHistory.value.slice(0, 20)
@@ -282,7 +299,7 @@ function saveToHistory() {
 
 // 加载会话
 function loadSession(sessionId) {
-  const session = chatHistory.value.find(s => s.id === sessionId)
+  const session = chatHistory.value.find((s) => s.id === sessionId)
   if (session) {
     messages.value = [...session.messages]
     currentSessionId.value = sessionId
@@ -297,7 +314,7 @@ function formatTime(timestamp) {
   const date = new Date(timestamp)
   const now = new Date()
   const diff = now - date
-  
+
   if (diff < 60000) return '刚刚'
   if (diff < 3600000) return `${Math.floor(diff / 60000)}分钟前`
   if (diff < 86400000) return `${Math.floor(diff / 3600000)}小时前`
@@ -331,7 +348,7 @@ onMounted(() => {
   todayGenerated.value = 3
   totalCases.value = 156
   usageTime.value = 45
-  
+
   // 从localStorage加载历史记录
   const savedHistory = localStorage.getItem('aigc-chat-history')
   if (savedHistory) {
@@ -344,9 +361,13 @@ onMounted(() => {
 })
 
 // 监听历史记录变化，自动保存
-watch(chatHistory, (newHistory) => {
-  localStorage.setItem('aigc-chat-history', JSON.stringify(newHistory))
-}, { deep: true })
+watch(
+  chatHistory,
+  (newHistory) => {
+    localStorage.setItem('aigc-chat-history', JSON.stringify(newHistory))
+  },
+  { deep: true }
+)
 </script>
 
 <style scoped>
@@ -357,7 +378,7 @@ watch(chatHistory, (newHistory) => {
 }
 
 .page-header {
-  background: linear-gradient(135deg, #FF8A65 0%, #FF7043 100%);
+  background: linear-gradient(135deg, #ff8a65 0%, #ff7043 100%);
   color: #ffffff;
   padding: 24px;
   margin-bottom: 24px;
@@ -464,7 +485,7 @@ watch(chatHistory, (newHistory) => {
 
 /* 主题适配 */
 [data-theme='dark'] .page-header {
-  background: linear-gradient(135deg, #D84315 0%, #BF360C 100%);
+  background: linear-gradient(135deg, #d84315 0%, #bf360c 100%);
   box-shadow: 0 2px 8px rgba(216, 67, 21, 0.25);
 }
 
@@ -484,18 +505,18 @@ watch(chatHistory, (newHistory) => {
   .chat-layout {
     flex-direction: column;
   }
-  
+
   .sidebar {
     width: 100%;
     order: -1;
   }
-  
+
   .header-content {
     flex-direction: column;
     align-items: flex-start;
     gap: 16px;
   }
-  
+
   .title-section h1 {
     font-size: 20px;
   }

@@ -5,32 +5,38 @@
         <n-tooltip trigger="hover">
           <template #trigger>
             <n-button size="small" quaternary circle @click="showPromptTemplates = true">
-              <template #icon><n-icon><Icon icon="ant-design:book-outlined" /></n-icon></template>
+              <template #icon
+                ><n-icon><Icon icon="ant-design:book-outlined" /></n-icon
+              ></template>
             </n-button>
           </template>
           提示词模板
         </n-tooltip>
-        
+
         <n-tooltip trigger="hover">
           <template #trigger>
             <n-button size="small" quaternary circle @click="$refs.fileInput.click()">
-              <template #icon><n-icon><Icon icon="mdi:attachment" /></n-icon></template>
+              <template #icon
+                ><n-icon><Icon icon="mdi:attachment" /></n-icon
+              ></template>
             </n-button>
           </template>
           上传文件
         </n-tooltip>
-        
+
         <n-tooltip trigger="hover">
           <template #trigger>
             <n-button size="small" quaternary circle @click="clearInput">
-              <template #icon><n-icon><Icon icon="ant-design:delete-outlined" /></n-icon></template>
+              <template #icon
+                ><n-icon><Icon icon="ant-design:delete-outlined" /></n-icon
+              ></template>
             </n-button>
           </template>
           清空输入
         </n-tooltip>
       </n-space>
     </div>
-    
+
     <div class="input-area">
       <n-input
         ref="inputRef"
@@ -43,22 +49,17 @@
         @focus="$emit('focus')"
         @blur="$emit('blur')"
       />
-      
+
       <div class="input-actions">
         <div class="input-info">
           <span class="char-count">{{ inputText.length }}/2000</span>
         </div>
-        
+
         <n-space>
-          <n-button
-            size="small"
-            quaternary
-            @click="$emit('clear-history')"
-            :disabled="loading"
-          >
+          <n-button size="small" quaternary :disabled="loading" @click="$emit('clear-history')">
             清空对话
           </n-button>
-          
+
           <n-button
             type="primary"
             size="small"
@@ -66,7 +67,7 @@
             :disabled="!canSend"
             @click="handleSend"
           >
-            <template #icon v-if="!loading">
+            <template v-if="!loading" #icon>
               <n-icon><Icon icon="ant-design:send-outlined" /></n-icon>
             </template>
             {{ loading ? '生成中...' : '发送' }}
@@ -74,7 +75,7 @@
         </n-space>
       </div>
     </div>
-    
+
     <!-- 文件上传 -->
     <input
       ref="fileInput"
@@ -84,7 +85,7 @@
       style="display: none"
       @change="handleFileUpload"
     />
-    
+
     <!-- 附件预览 -->
     <div v-if="attachments.length" class="attachments-preview">
       <n-space>
@@ -102,16 +103,19 @@
         </n-tag>
       </n-space>
     </div>
-    
+
     <!-- 提示词模板弹窗 -->
-    <n-modal v-model:show="showPromptTemplates" preset="card" title="选择提示词模板" style="width: 600px">
+    <n-modal
+      v-model:show="showPromptTemplates"
+      preset="card"
+      title="选择提示词模板"
+      style="width: 600px"
+    >
       <n-list>
         <n-list-item v-for="template in promptTemplates" :key="template.id">
           <n-thing :title="template.title" :description="template.description">
             <template #action>
-              <n-button size="small" @click="useTemplate(template)">
-                使用模板
-              </n-button>
+              <n-button size="small" @click="useTemplate(template)"> 使用模板 </n-button>
             </template>
           </n-thing>
         </n-list-item>
@@ -122,18 +126,31 @@
 
 <script setup>
 import { ref, computed, nextTick } from 'vue'
-import { NInput, NButton, NIcon, NSpace, NTooltip, NTag, NModal, NList, NListItem, NThing, useMessage } from 'naive-ui'
+import {
+  NInput,
+  NButton,
+  NIcon,
+  NSpace,
+  NTooltip,
+  NTag,
+  NModal,
+  NList,
+  NListItem,
+  NThing,
+  useMessage,
+} from 'naive-ui'
 import { Icon } from '@iconify/vue'
 
 const props = defineProps({
   loading: {
     type: Boolean,
-    default: false
+    default: false,
   },
   placeholder: {
     type: String,
-    default: '请描述您的教学内容和思政要求，例如：\n\n- 课程章节：软件测试\n- 知识点：单元测试、测试驱动开发\n- 思政主题：质量意识、精益求精\n- 案例要求：结合实际项目经验'
-  }
+    default:
+      '请描述您的教学内容和思政要求，例如：\n\n- 课程章节：软件测试\n- 知识点：单元测试、测试驱动开发\n- 思政主题：质量意识、精益求精\n- 案例要求：结合实际项目经验',
+  },
 })
 
 const emit = defineEmits(['send', 'clear-history', 'focus', 'blur'])
@@ -155,20 +172,23 @@ const promptTemplates = ref([
     id: 1,
     title: '软件工程基础案例',
     description: '生成软件工程基础知识相关的思政案例',
-    content: '请为《软件工程》课程生成一个思政案例：\n\n课程章节：[请填写章节名称]\n知识点：[请填写具体知识点]\n思政主题：职业道德、团队协作\n案例要求：结合实际软件开发项目，体现工程师的社会责任'
+    content:
+      '请为《软件工程》课程生成一个思政案例：\n\n课程章节：[请填写章节名称]\n知识点：[请填写具体知识点]\n思政主题：职业道德、团队协作\n案例要求：结合实际软件开发项目，体现工程师的社会责任',
   },
   {
     id: 2,
     title: '团队协作案例',
     description: '强调团队合作和沟通的重要性',
-    content: '请生成一个关于团队协作的思政案例：\n\n背景：敏捷开发团队项目\n重点：有效沟通、相互信任、共同目标\n思政要素：集体主义精神、协作共赢\n期望效果：培养学生团队意识和协作能力'
+    content:
+      '请生成一个关于团队协作的思政案例：\n\n背景：敏捷开发团队项目\n重点：有效沟通、相互信任、共同目标\n思政要素：集体主义精神、协作共赢\n期望效果：培养学生团队意识和协作能力',
   },
   {
     id: 3,
     title: '质量与责任案例',
     description: '突出软件质量与社会责任的关系',
-    content: '请创建一个关于软件质量的思政案例：\n\n主题：软件质量与社会影响\n场景：关键系统软件开发\n思政角度：精益求精、社会责任感\n教学目标：培养学生对软件质量的敬畏之心'
-  }
+    content:
+      '请创建一个关于软件质量的思政案例：\n\n主题：软件质量与社会影响\n场景：关键系统软件开发\n思政角度：精益求精、社会责任感\n教学目标：培养学生对软件质量的敬畏之心',
+  },
 ])
 
 function handleKeydown(e) {
@@ -183,17 +203,17 @@ function handleKeydown(e) {
 function handleSend() {
   console.log('handleSend called, canSend:', canSend.value)
   if (!canSend.value) return
-  
+
   const content = inputText.value.trim()
   const files = [...attachments.value]
-  
+
   console.log('Emitting send event with:', { content, attachments: files })
-  
+
   emit('send', {
     content,
-    attachments: files
+    attachments: files,
   })
-  
+
   // 清空输入
   inputText.value = ''
   attachments.value = []
@@ -210,21 +230,21 @@ function clearInput() {
 function handleFileUpload(e) {
   const files = Array.from(e.target.files)
   const maxSize = 10 * 1024 * 1024 // 10MB
-  
+
   for (const file of files) {
     if (file.size > maxSize) {
       message.warning(`文件 ${file.name} 超过10MB限制`)
       continue
     }
-    
-    if (attachments.value.find(f => f.name === file.name && f.size === file.size)) {
+
+    if (attachments.value.find((f) => f.name === file.name && f.size === file.size)) {
       message.warning(`文件 ${file.name} 已存在`)
       continue
     }
-    
+
     attachments.value.push(file)
   }
-  
+
   // 清空input
   e.target.value = ''
 }
@@ -244,7 +264,7 @@ function useTemplate(template) {
 // 暴露方法供父组件调用
 defineExpose({
   focus: () => inputRef.value?.focus(),
-  clear: clearInput
+  clear: clearInput,
 })
 </script>
 
@@ -315,13 +335,13 @@ defineExpose({
   .chat-input-container {
     padding: 12px;
   }
-  
+
   .input-actions {
     flex-direction: column;
     align-items: stretch;
     gap: 8px;
   }
-  
+
   .input-info {
     text-align: center;
   }

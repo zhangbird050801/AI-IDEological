@@ -90,5 +90,19 @@ class Settings(BaseSettings):
     }
     DATETIME_FORMAT: str = "%Y-%m-%d %H:%M:%S"
 
+    # AIGC / DeepSeek configuration (read from .env)
+    DEEPSEEK_API_KEY: str | None = None
+    DEEPSEEK_API_BASE: str = "https://api.deepseek.com"
+    AIGC_PROVIDER: str = "deepseek"
+    AIGC_MODEL: str = "deepseek-chat"
+    AIGC_TIMEOUT: str | int = 60000
+
+    # Ensure pydantic reads the project's .env file (project root)
+    # BASE_DIR was defined above as the project root directory
+    model_config = {
+        "env_file": os.path.join(BASE_DIR, ".env"),
+        "env_file_encoding": "utf-8",
+    }
+
 
 settings = Settings()
