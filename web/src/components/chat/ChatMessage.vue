@@ -34,7 +34,7 @@
           <span>{{ message.content }}</span>
           <span class="cursor">|</span>
         </div>
-        <div v-else class="message-text" v-html="formatContent(message.content)"></div>
+        <div v-else class="message-text" v-html="renderMarkdown(message.content)"></div>
 
         <div v-if="message.attachments?.length" class="message-attachments">
           <n-space>
@@ -78,6 +78,7 @@
 import { computed } from 'vue'
 import { NAvatar, NIcon, NSpace, NTag, NButton } from 'naive-ui'
 import { Icon } from '@iconify/vue'
+import MarkdownIt from 'markdown-it'
 
 const props = defineProps({
   message: {
@@ -99,14 +100,27 @@ function formatTime(timestamp) {
   return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
 }
 
-function formatContent(content) {
+//  使用 markdown-it 渲染
+const md = new MarkdownIt({
+  html: true, // 允许 HTML 标签
+  linkify: true, // 自动转换链接
+  breaks: true, // 转换换行符为 <br>
+  // typographer: true, // 启用 typographer
+})
+
+function renderMarkdown(content) {
   if (!content) return ''
-  // 简单的markdown渲染，处理换行和加粗
-  return content
-    .replace(/\n/g, '<br>')
-    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*(.*?)\*/g, '<em>$1</em>')
+  return md.render(content)
 }
+
+// function formatContent(content) {
+//   if (!content) return ''
+//   // 简单的markdown渲染，处理换行和加粗
+//   return content
+//     .replace(/\n/g, '<br>')
+//     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+//     .replace(/\*(.*?)\*/g, '<em>$1</em>')
+// }
 </script>
 
 <style scoped>
@@ -180,6 +194,61 @@ function formatContent(content) {
   line-height: 1.6;
   color: var(--n-text-color);
   word-wrap: break-word;
+}
+
+/* 为两种列表设置通用的内外边距 */
+.message-text :deep(ul),
+.message-text :deep(ol) {
+  /* 使用 padding-left 可以更好地控制项目符号的位置 */
+  padding-left: 2em; 
+  margin-top: 0.5em;
+  margin-bottom: 1em;
+}
+
+/* 专门为无序列表 <ul> 设置项目符号 */
+.message-text :deep(ul) {
+  list-style-type: disc; /* 实心圆点 */
+}
+
+/* 专门为有序列表 <ol> 设置项目符号 */
+.message-text :deep(ol) {
+  list-style-type: decimal; /* 数字 */
+}
+
+/* 为所有列表项 <li> 设置通用的样式（比如行间距），但不涉及符号类型 */
+.message-text :deep(li) {
+  margin-bottom: 0.5em;
+}
+
+/* 为行内代码 <code> 设置样式 */
+  .message-text :deep(code) {
+  /* 使用一个半透明的深色作为背景。
+     在浅色渐变背景上，这会呈现为半透明的灰色。
+     它既能醒目地标识出代码，又不会完全遮挡背景的美感。*/
+  background-color: rgba(0, 0, 0, 0.08);
+  
+  /* 添加一些内边距和圆角，让它看起来更像一个标签 */
+  padding: 3px 6px;
+  border-radius: 5px;
+  
+  /* 确保代码使用等宽字体 */
+  font-family: Consolas, Monaco, 'Andale Mono', 'Ubuntu Mono', monospace;
+  font-size: 0.9em; /* 可以让字体稍微小一点 */
+}
+
+/* 为代码块 <pre> 设置样式 (通常是多行代码) */
+.message-text :deep(pre) {
+  background-color: rgba(0, 0, 0, 0.1); /* 背景可以比行内代码稍深一点 */
+  padding: 1em;
+  border-radius: 8px;
+  white-space: pre-wrap;   /* 允许代码自动换行 */
+  word-wrap: break-word; /* 在单词内部换行 */
+}
+
+/* 如果 pre 标签内也包含 code 标签，我们不希望它有双重背景 */
+.message-text :deep(pre code) {
+  background-color: transparent; /* 重置背景 */
+  padding: 0; /* 重置内边距 */
 }
 
 .streaming-content {
