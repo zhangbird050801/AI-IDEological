@@ -38,9 +38,14 @@
     "vue-i18n": "9",
     "vue-router": "^4.2.4"
   },
+  "optionalDependencies": {
+    "markdown-it": "^13.0.1",
+    "dompurify": "^3.0.8"
+  },
   "devDependencies": {
     "@vitejs/plugin-vue": "^4.2.3",
-    "vite": "^4.4.6"
+    "vite": "^4.4.6",
+    "postcss": "^8.4.21"
   },
   "lint-staged": {
     "*.{js,vue}": [
