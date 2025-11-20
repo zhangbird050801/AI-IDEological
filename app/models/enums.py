@@ -17,3 +17,39 @@ class MethodType(StrEnum):
     PUT = "PUT"
     DELETE = "DELETE"
     PATCH = "PATCH"
+
+
+class CaseStatus(StrEnum):
+    DRAFT = "draft"  # 草稿
+    PENDING = "pending"  # 待审核
+    APPROVED = "approved"  # 已通过
+    REJECTED = "rejected"  # 已拒绝
+    PUBLISHED = "published"  # 已发布
+
+
+class CaseType(StrEnum):
+    CASE_STUDY = "case_study"  # 案例分析
+    DISCUSSION = "discussion"  # 讨论题
+    THINKING = "thinking"  # 思考题
+    EXAMPLE = "example"  # 示例
+    PRACTICE = "practice"  # 实践项目
+
+
+class ResourceType(StrEnum):
+    DOCUMENT = "document"  # 文档
+    VIDEO = "video"  # 视频
+    AUDIO = "audio"  # 音频
+    IMAGE = "image"  # 图片
+    PRESENTATION = "presentation"  # 演示文稿
+    SIMULATION = "simulation"  # 虚拟仿真
+    LINK = "link"  # 外部链接
+    OTHER = "other"  # 其他
+
+
+class TemplateType(StrEnum):
+    CASE_GENERATION = "case_generation"  # 案例生成
+    DISCUSSION_GENERATION = "discussion_generation"  # 讨论题生成
+    THINKING_GENERATION = "thinking_generation"  # 思考题生成
+    CONTENT_OPTIMIZATION = "content_optimization"  # 内容优化
+    TEACHING_DESIGN = "teaching_design"  # 教学设计
+    KNOWLEDGE_POINT = "knowledge_point"  # 知识点讲解

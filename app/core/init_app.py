@@ -231,3 +231,10 @@ async def init_data():
     await init_menus()
     await init_apis()
     await init_roles()
+
+    # 初始化ideological模块的基础数据
+    try:
+        from app.core.init_data import init_system_data
+        await init_system_data()
+    except Exception as e:
+        logger.warning(f"Ideological数据初始化失败: {e}")

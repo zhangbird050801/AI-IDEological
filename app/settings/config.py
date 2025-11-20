@@ -23,60 +23,26 @@ class Settings(BaseSettings):
     SECRET_KEY: str = "3488a63e1765035d386f05409663f55c83bfae3b3c61a932744b20ad14244dcf"  # openssl rand -hex 32
     JWT_ALGORITHM: str = "HS256"
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 day
+    # Database URL - 可以通过环境变量 DATABASE_URL 覆盖
+    DATABASE_URL: str = "mysql://root:12345678@localhost:3306/AIdata"
+
     TORTOISE_ORM: dict = {
         "connections": {
-            # SQLite configuration
-            # "sqlite": {
-            #     "engine": "tortoise.backends.sqlite",
-            #     "credentials": {"file_path": f"{BASE_DIR}/db.sqlite3"},  # Path to SQLite database file
-            # },
-            # MySQL/MariaDB configuration
-            # Install with: tortoise-orm[asyncmy]
+            # MySQL/MariaDB configuration (默认)
             "mysql": {
                 "engine": "tortoise.backends.mysql",
                 "credentials": {
                     "host": "localhost",  # Database host address
                     "port": 3306,  # Database port
                     "user": "root",  # Database username
-                    "password": "root",  # Database password
+                    "password": "12345678",  # Database password
                     "database": "AIdata",  # Database name
                 },
             },
-            # PostgreSQL configuration
-            # Install with: tortoise-orm[asyncpg]
-            # "postgres": {
-            #     "engine": "tortoise.backends.asyncpg",
-            #     "credentials": {
-            #         "host": "localhost",  # Database host address
-            #         "port": 5432,  # Database port
-            #         "user": "yourusername",  # Database username
-            #         "password": "yourpassword",  # Database password
-            #         "database": "yourdatabase",  # Database name
-            #     },
-            # },
-            # MSSQL/Oracle configuration
-            # Install with: tortoise-orm[asyncodbc]
-            # "oracle": {
-            #     "engine": "tortoise.backends.asyncodbc",
-            #     "credentials": {
-            #         "host": "localhost",  # Database host address
-            #         "port": 1433,  # Database port
-            #         "user": "yourusername",  # Database username
-            #         "password": "yourpassword",  # Database password
-            #         "database": "yourdatabase",  # Database name
-            #     },
-            # },
-            # SQLServer configuration
-            # Install with: tortoise-orm[asyncodbc]
-            # "sqlserver": {
-            #     "engine": "tortoise.backends.asyncodbc",
-            #     "credentials": {
-            #         "host": "localhost",  # Database host address
-            #         "port": 1433,  # Database port
-            #         "user": "yourusername",  # Database username
-            #         "password": "yourpassword",  # Database password
-            #         "database": "yourdatabase",  # Database name
-            #     },
+            # SQLite configuration (备用)
+            # "sqlite": {
+            #     "engine": "tortoise.backends.sqlite",
+            #     "credentials": {"file_path": f"{BASE_DIR}/db.sqlite3"},  # Path to SQLite database file
             # },
         },
         "apps": {
