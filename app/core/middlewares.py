@@ -40,10 +40,16 @@ class SimpleBaseMiddleware:
 
 class BackGroundTaskMiddleware(SimpleBaseMiddleware):
     async def before_request(self, request):
-        await BgTasks.init_bg_tasks_obj()
+        try:
+            await BgTasks.init_bg_tasks_obj()
+        except Exception as e:
+            print(f"后台任务初始化异常: {e}")
 
     async def after_request(self, request):
-        await BgTasks.execute_tasks()
+        try:
+            await BgTasks.execute_tasks()
+        except Exception as e:
+            print(f"后台任务执行异常: {e}")
 
 
 class HttpAuditLogMiddleware(BaseHTTPMiddleware):
@@ -155,9 +161,16 @@ class HttpAuditLogMiddleware(BaseHTTPMiddleware):
                 user_obj: User = await AuthControl.is_authed(token)
             data["user_id"] = user_obj.id if user_obj else 0
             data["username"] = user_obj.username if user_obj else ""
-        except Exception:
+        except HTTPException:
+            # HTTP异常直接传递
             data["user_id"] = 0
             data["username"] = ""
+        except Exception as e:
+            # 其他异常记录但不中断日志记录
+            data["user_id"] = 0
+            data["username"] = ""
+            # 可以选择记录错误日志
+            print(f"中间件认证异常: {e}")
         return data
 
     async def before_request(self, request: Request):
@@ -174,7 +187,11 @@ class HttpAuditLogMiddleware(BaseHTTPMiddleware):
 
             data["request_args"] = request.state.request_args
             data["response_body"] = await self.get_response_body(request, response)
-            await AuditLog.create(**data)
+            try:
+                await AuditLog.create(**data)
+            except Exception as e:
+                # 审计日志创建失败不应该影响请求
+                print(f"审计日志创建失败: {e}")
 
         return response
 

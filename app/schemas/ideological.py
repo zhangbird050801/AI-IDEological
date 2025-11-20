@@ -88,7 +88,7 @@ class PromptTemplateInDB(PromptTemplateBase):
     id: int
     usage_count: int
     is_system: bool
-    creator_id: int
+    creator_id: Optional[int] = None
     rating: float
     rating_count: int
     created_at: datetime

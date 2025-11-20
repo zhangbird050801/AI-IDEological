@@ -14,6 +14,8 @@ class AuthControl:
         try:
             if token == "dev":
                 user = await User.filter().first()
+                if not user:
+                    raise HTTPException(status_code=401, detail="No users found in database. Please initialize the database first.")
                 user_id = user.id
             else:
                 decode_data = jwt.decode(token, settings.SECRET_KEY, algorithms=settings.JWT_ALGORITHM)
@@ -28,7 +30,10 @@ class AuthControl:
         except jwt.ExpiredSignatureError:
             raise HTTPException(status_code=401, detail="登录已过期")
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"{repr(e)}")
+            # 检查是否是数据库连接问题
+            if "ConfigurationError" in str(e) or "default_connection" in str(e):
+                raise HTTPException(status_code=503, detail="数据库服务暂时不可用，请稍后重试")
+            raise HTTPException(status_code=500, detail=f"服务器内部错误: {str(e)}")
 
 
 class PermissionControl:

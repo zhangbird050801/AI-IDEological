@@ -140,7 +140,7 @@ async def get_templates(
     result = await template_service.get_templates_with_search(search_request, current_user.id)
 
     # 转换为响应格式
-    templates = [PromptTemplate.from_orm(item) for item in result["items"]]
+    templates = [PromptTemplate.model_validate(item) for item in result["items"]]
 
     return {
         "items": templates,
@@ -156,7 +156,7 @@ async def create_template(
     current_user: User = Depends(AuthControl.is_authed)
 ):
     template = await template_service.create_template(template_in, current_user.id)
-    return PromptTemplate.from_orm(template)
+    return PromptTemplate.model_validate(template)
 
 @router.get("/{template_id}", summary="获取提示词模板详情")
 async def get_template(
@@ -167,7 +167,7 @@ async def get_template(
     if not template or not template.is_active:
         raise HTTPException(status_code=404, detail="模板不存在或已禁用")
 
-    return PromptTemplate.from_orm(template)
+    return PromptTemplate.model_validate(template)
 
 @router.put("/{template_id}", summary="更新提示词模板")
 async def update_template(
@@ -197,7 +197,7 @@ async def update_template(
     await template.update_from_dict(update_data)
     await template.save()
 
-    return PromptTemplate.from_orm(template)
+    return PromptTemplate.model_validate(template)
 
 @router.delete("/{template_id}", summary="删除提示词模板")
 async def delete_template(
@@ -286,7 +286,7 @@ async def get_system_templates(
     current_user: User = Depends(AuthControl.is_authed)
 ):
     templates = await template_service.get_system_templates()
-    return [PromptTemplate.from_orm(template) for template in templates]
+    return [PromptTemplate.model_validate(template) for template in templates]
 
 @router.post("/{template_id}/rate", summary="评分模板")
 async def rate_template(
@@ -295,7 +295,7 @@ async def rate_template(
     current_user: User = Depends(AuthControl.is_authed)
 ):
     template = await template_service.update_template_rating(template_id, rating)
-    return PromptTemplate.from_orm(template)
+    return PromptTemplate.model_validate(template)
 
 @router.post("/{template_id}/render", summary="渲染模板")
 async def render_template(
