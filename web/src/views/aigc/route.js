@@ -36,6 +36,16 @@ export default {
         icon: 'mdi:file-document-outline',
       },
     },
+      {
+      name: 'AIGCPromptAssistant',
+      path: 'prompt-assistant',
+      component: () => import('@/views/aigc/prompt-assistant/index.vue'),
+      meta: {
+        title: '提示词助手',
+        icon: 'mdi:robot-outline',
+        keepAlive: false, // 禁用缓存以确保页面刷新
+      },
+    },
     {
       name: 'AIGCResources',
       path: 'resources',

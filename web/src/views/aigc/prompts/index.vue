@@ -2,37 +2,36 @@
   <AppPage>
     <div class="prompts-page">
       <!-- 页面头部 -->
-      <div class="page-header">
+      <n-card class="page-header" :bordered="false">
         <div class="header-content">
           <div class="title-section">
             <h1>提示词模板库</h1>
-            <p>专业的课程思政内容生成提示词模板，提高AIGC内容质量和教学效果</p>
           </div>
 
           <div class="actions-section">
             <n-space>
-              <n-button type="primary" @click="showCreateModal">
+              <n-button type="primary" @click="generateWithAssistant">
                 <template #icon>
-                  <n-icon><Icon icon="ant-design:plus-outlined" /></n-icon>
+                  <n-icon><Icon icon="mdi:robot" /></n-icon>
                 </template>
-                新建模板
+                AI助手生成
               </n-button>
               <n-button @click="showImportModal">
                 <template #icon>
-                  <n-icon><Icon icon="ant-design:import-outlined" /></n-icon>
+                  <n-icon><Icon icon="mdi:import" /></n-icon>
                 </template>
                 导入模板
               </n-button>
               <n-button @click="showSystemTemplates">
                 <template #icon>
-                  <n-icon><Icon icon="ant-design:star-outlined" /></n-icon>
+                  <n-icon><Icon icon="mdi:star" /></n-icon>
                 </template>
                 系统模板
               </n-button>
             </n-space>
           </div>
         </div>
-      </div>
+      </n-card>
 
       <!-- 统计信息 -->
       <n-grid :cols="4" :x-gap="16">
@@ -63,7 +62,7 @@
                 @keyup.enter="handleSearch"
               >
                 <template #prefix>
-                  <n-icon><Icon icon="ant-design:search-outlined" /></n-icon>
+                  <n-icon><Icon icon="mdi:magnify" /></n-icon>
                 </template>
               </n-input>
             </n-form-item-grid-item>
@@ -152,19 +151,16 @@
 
                 <div class="template-content">
                   <p class="template-description">
-                    {{ template.description }}
+                    {{ template.description || '' }}
                   </p>
 
                   <div class="template-preview">
-                    <n-code
-                      :code="template.template_content.substring(0, 200) + '...'"
-                      language="text"
-                      show-line-numbers
-                      :line-height="1.4"
-                    />
+                  <div class="code-content">
+                    {{ (template.template_content || '').substring(0, 200) + '...' }}
                   </div>
+                </div>
 
-                  <div class="template-variables" v-if="template.variables.length > 0">
+                  <div class="template-variables" v-if="template.variables && template.variables.length > 0">
                     <n-space size="small" wrap>
                       <n-tag v-for="variable in template.variables" :key="variable" size="small">
                         {{ '{' + '{' + variable + '}' + '}' }}
@@ -176,19 +172,19 @@
                     <n-space size="small">
                       <n-button size="small" text>
                         <template #icon>
-                          <n-icon><Icon icon="ant-design:fire-outlined" /></n-icon>
+                          <n-icon><Icon icon="mdi:fire" /></n-icon>
                         </template>
                         {{ template.usage_count }}
                       </n-button>
                       <n-button size="small" text @click.stop="previewTemplate(template)">
                         <template #icon>
-                          <n-icon><Icon icon="ant-design:eye-outlined" /></n-icon>
+                          <n-icon><Icon icon="mdi:eye" /></n-icon>
                         </template>
                         预览
                       </n-button>
                       <n-button size="small" text @click.stop="useTemplate(template)">
                         <template #icon>
-                          <n-icon><Icon icon="ant-design:play-circle-outlined" /></n-icon>
+                          <n-icon><Icon icon="mdi:play" /></n-icon>
                         </template>
                         使用
                       </n-button>
@@ -212,7 +208,7 @@
                       >
                         <n-button size="small" text>
                           <template #icon>
-                            <n-icon><Icon icon="ant-design:more-outlined" /></n-icon>
+                            <n-icon><Icon icon="mdi:dots-vertical" /></n-icon>
                           </template>
                         </n-button>
                       </n-dropdown>
@@ -243,133 +239,15 @@
           style="margin: 40px 0"
         >
           <template #action>
-            <n-button type="primary" @click="showCreateModal">
-              创建第一个模板
+            <n-button type="primary" @click="generateWithAssistant">
+              使用AI助手生成
             </n-button>
           </template>
         </n-empty>
       </n-card>
     </div>
 
-    <!-- 创建/编辑模板弹窗 -->
-    <n-modal
-      v-model:show="createModalVisible"
-      :mask-closable="false"
-      preset="dialog"
-      style="width: 900px"
-      :title="editingTemplate ? '编辑模板' : '新建模板'"
-    >
-      <n-form
-        ref="templateFormRef"
-        :model="templateForm"
-        :rules="templateFormRules"
-        label-placement="left"
-        :label-width="120"
-        require-mark-placement="right-hanging"
-      >
-        <n-grid :cols="2" :x-gap="16">
-          <n-form-item-grid-item label="模板名称" path="name">
-            <n-input
-              v-model:value="templateForm.name"
-              placeholder="请输入模板名称"
-              maxlength="100"
-              show-count
-            />
-          </n-form-item-grid-item>
-
-          <n-form-item-grid-item label="模板类型" path="template_type">
-            <n-select
-              v-model:value="templateForm.template_type"
-              placeholder="选择模板类型"
-              :options="templateTypeOptions"
-            />
-          </n-form-item-grid-item>
-        </n-grid>
-
-        <n-form-item label="模板描述" path="description">
-          <n-input
-            v-model:value="templateForm.description"
-            type="textarea"
-            placeholder="请输入模板描述"
-            :autosize="{ minRows: 2, maxRows: 4 }"
-            maxlength="500"
-            show-count
-          />
-        </n-form-item>
-
-        <n-form-item label="分类" path="category">
-          <n-select
-            v-model:value="templateForm.category"
-            placeholder="选择分类"
-            :options="categoryOptions"
-            filterable
-            tag
-          />
-        </n-form-item>
-
-        <n-grid :cols="2" :x-gap="16">
-          <n-form-item-grid-item label="软件工程章节" path="software_engineering_chapter">
-            <n-select
-              v-model:value="templateForm.software_engineering_chapter"
-              placeholder="选择章节"
-              :options="chapterOptions"
-              clearable
-            />
-          </n-form-item-grid-item>
-
-          <n-form-item-grid-item label="思政主题" path="ideological_theme">
-            <n-select
-              v-model:value="templateForm.ideological_theme"
-              placeholder="选择主题"
-              :options="themeOptions"
-              clearable
-            />
-          </n-form-item-grid-item>
-        </n-grid>
-
-        <n-form-item label="模板内容" path="template_content">
-          <n-input
-            v-model:value="templateForm.template_content"
-            type="textarea"
-            placeholder="请输入模板内容，使用 {{变量名}} 定义变量"
-            :autosize="{ minRows: 8, maxRows: 16 }"
-            maxlength="5000"
-            show-count
-          />
-          <template #feedback>
-            <n-text depth="3" style="font-size: 12px">
-              提示：使用 {{变量名}} 定义变量，如：{{章节}}、{{思政主题}}
-            </n-text>
-          </template>
-        </n-form-item>
-
-        <n-form-item label="提取的变量">
-          <n-space>
-            <n-tag
-              v-for="variable in extractedVariables"
-              :key="variable"
-              type="info"
-              size="small"
-            >
-              {{ '{' + '{' + variable + '}' + '}' }}
-            </n-tag>
-            <n-text v-if="extractedVariables.length === 0" depth="3" style="font-size: 12px">
-              在模板内容中使用 {{变量名}} 格式定义变量
-            </n-text>
-          </n-space>
-        </n-form-item>
-      </n-form>
-
-      <template #action>
-        <n-space>
-          <n-button @click="createModalVisible = false">取消</n-button>
-          <n-button type="primary" @click="handleSubmitTemplate" :loading="submitLoading">
-            {{ editingTemplate ? '更新' : '创建' }}
-          </n-button>
-        </n-space>
-      </template>
-    </n-modal>
-
+  
     <!-- 模板预览弹窗 -->
     <n-modal
       v-model:show="previewModalVisible"
@@ -391,9 +269,9 @@
             {{ previewTemplate.category }}
           </n-descriptions-item>
           <n-descriptions-item label="描述">
-            {{ previewTemplate.description }}
+            {{ previewTemplate.description || '' }}
           </n-descriptions-item>
-          <n-descriptions-item label="变量" v-if="previewTemplate.variables.length > 0">
+          <n-descriptions-item label="变量" v-if="previewTemplate.variables && previewTemplate.variables.length > 0">
             <n-space wrap>
               <n-tag v-for="variable in previewTemplate.variables" :key="variable" size="small">
                 {{ '{' + '{' + variable + '}' + '}' }}
@@ -404,12 +282,9 @@
 
         <div style="margin-top: 16px">
           <h4>模板内容：</h4>
-          <n-code
-            :code="previewTemplate.template_content"
-            language="text"
-            show-line-numbers
-            :line-height="1.6"
-          />
+          <div class="preview-code-content">
+            {{ previewTemplate.template_content || '' }}
+          </div>
         </div>
       </div>
 
@@ -425,8 +300,15 @@
   </AppPage>
 </template>
 
+<script>
+export default {
+  name: 'AIGCPrompts'
+}
+</script>
+
 <script setup>
-import { ref, reactive, onMounted, computed, watch } from 'vue'
+import { ref, reactive, onMounted, computed, watch, h } from 'vue'
+import { useRouter } from 'vue-router'
 import {
   NCard,
   NButton,
@@ -463,11 +345,11 @@ const message = useMessage()
 const dialog = useDialog()
 
 const loading = ref(false)
-const submitLoading = ref(false)
-const createModalVisible = ref(false)
 const previewModalVisible = ref(false)
-const editingTemplate = ref(null)
 const previewTemplate = ref(null)
+
+// 调试信息
+console.log('AIGCPrompts 组件已加载')
 
 // 统计数据
 const totalTemplates = ref(0)
@@ -484,25 +366,6 @@ const searchForm = reactive({
   ideological_theme: null,
 })
 
-// 模板表单
-const templateFormRef = ref()
-const templateForm = reactive({
-  name: '',
-  description: '',
-  template_type: null,
-  template_content: '',
-  variables: [],
-  category: null,
-  software_engineering_chapter: null,
-  ideological_theme: null,
-})
-
-// 提取的变量
-const extractedVariables = computed(() => {
-  const matches = templateForm.template_content.match(/\{\{(\w+)\}\}/g)
-  if (!matches) return []
-  return [...new Set(matches.map(match => match.slice(2, -2)))]
-})
 
 // 模板列表
 const templatesList = ref([])
@@ -520,36 +383,6 @@ const categoryOptions = ref([])
 const chapterOptions = ref([])
 const themeOptions = ref([])
 
-// 表单验证规则
-const templateFormRules = {
-  name: [
-    { required: true, message: '请输入模板名称', trigger: 'blur' },
-    { max: 100, message: '名称长度不能超过100个字符', trigger: 'blur' },
-  ],
-  description: [
-    { required: true, message: '请输入模板描述', trigger: 'blur' },
-    { max: 500, message: '描述长度不能超过500个字符', trigger: 'blur' },
-  ],
-  template_type: [
-    { required: true, message: '请选择模板类型', trigger: 'change' },
-  ],
-  template_content: [
-    { required: true, message: '请输入模板内容', trigger: 'blur' },
-    { max: 5000, message: '内容长度不能超过5000个字符', trigger: 'blur' },
-  ],
-  category: [
-    { required: true, message: '请选择分类', trigger: 'change' },
-  ],
-}
-
-// 监听模板内容变化，自动提取变量
-watch(
-  () => templateForm.template_content,
-  () => {
-    templateForm.variables = extractedVariables.value
-  }
-)
-
 // 方法
 const fetchTemplates = async () => {
   loading.value = true
@@ -561,9 +394,10 @@ const fetchTemplates = async () => {
     }
 
     const response = await request.get('/ideological/templates/', { params })
-    templatesList.value = response.items
-    pagination.itemCount = response.total
+    templatesList.value = response.data?.items || []
+    pagination.itemCount = response.data?.total || 0
   } catch (error) {
+    console.error('获取模板列表失败:', error)
     message.error('获取模板列表失败')
   } finally {
     loading.value = false
@@ -575,7 +409,7 @@ const fetchOptions = async () => {
     // 获取模板类型选项
     try {
       const typesResponse = await request.get('/ideological/templates/types/list')
-      templateTypeOptions.value = typesResponse
+      templateTypeOptions.value = Array.isArray(typesResponse.data) ? typesResponse.data : (typesResponse?.data || typesResponse || [])
     } catch (error) {
       // 使用默认模板类型数据
       templateTypeOptions.value = [
@@ -591,7 +425,8 @@ const fetchOptions = async () => {
     // 获取分类选项
     try {
       const categoriesResponse = await request.get('/ideological/templates/categories/list')
-      categoryOptions.value = categoriesResponse.map(item => ({
+      const categoriesData = Array.isArray(categoriesResponse.data) ? categoriesResponse.data : (categoriesResponse?.data || categoriesResponse || [])
+      categoryOptions.value = categoriesData.map(item => ({
         label: item,
         value: item,
       }))
@@ -605,7 +440,8 @@ const fetchOptions = async () => {
     // 获取章节选项
     try {
       const chaptersResponse = await casesApi.getChapters()
-      chapterOptions.value = chaptersResponse.map(item => ({
+      const chaptersData = Array.isArray(chaptersResponse.data) ? chaptersResponse.data : (chaptersResponse?.data || chaptersResponse || [])
+      chapterOptions.value = chaptersData.map(item => ({
         label: item,
         value: item,
       }))
@@ -620,7 +456,8 @@ const fetchOptions = async () => {
     // 获取主题选项
     try {
       const themesResponse = await templatesApi.getThemes()
-      themeOptions.value = themesResponse.map(item => ({
+      const themesData = Array.isArray(themesResponse.data) ? themesResponse.data : (themesResponse?.data || themesResponse || [])
+      themeOptions.value = themesData.map(item => ({
         label: item,
         value: item,
       }))
@@ -640,10 +477,10 @@ const fetchStatistics = async () => {
   try {
     // 获取统计数据
     const allResponse = await request.get('/ideological/templates/', { params: { page_size: 1 } })
-    totalTemplates.value = allResponse.total
+    totalTemplates.value = allResponse.data?.total || 0
 
     const systemResponse = await request.get('/ideological/templates/system/list')
-    systemTemplates.value = systemResponse.length
+    systemTemplates.value = (systemResponse.data || []).length
 
     myTemplates.value = totalTemplates.value - systemTemplates.value
 
@@ -681,57 +518,6 @@ const handlePageSizeChange = (pageSize) => {
   fetchTemplates()
 }
 
-const showCreateModal = () => {
-  editingTemplate.value = null
-  resetTemplateForm()
-  createModalVisible.value = true
-}
-
-const resetTemplateForm = () => {
-  Object.assign(templateForm, {
-    name: '',
-    description: '',
-    template_type: null,
-    template_content: '',
-    variables: [],
-    category: null,
-    software_engineering_chapter: null,
-    ideological_theme: null,
-  })
-}
-
-const editTemplate = (template) => {
-  editingTemplate.value = template
-  Object.assign(templateForm, template)
-  createModalVisible.value = true
-}
-
-const handleSubmitTemplate = async () => {
-  try {
-    await templateFormRef.value?.validate()
-    submitLoading.value = true
-
-    const templateData = { ...templateForm }
-    templateData.variables = extractedVariables.value
-
-    if (editingTemplate.value) {
-      await request.put(`/ideological/templates/${editingTemplate.value.id}`, templateData)
-      message.success('模板更新成功')
-    } else {
-      await request.post('/ideological/templates/', templateData)
-      message.success('模板创建成功')
-    }
-
-    createModalVisible.value = false
-    fetchTemplates()
-    fetchStatistics()
-  } catch (error) {
-    message.error(editingTemplate.value ? '模板更新失败' : '模板创建失败')
-  } finally {
-    submitLoading.value = false
-  }
-}
-
 const viewTemplateDetail = (template) => {
   previewTemplate.value = template
   previewModalVisible.value = true
@@ -742,10 +528,36 @@ const useTemplate = (template) => {
 
   // 跳转到聊天页面并使用该模板
   message.info(`使用模板: ${template.name}`)
-  // 这里可以跳转到聊天页面并传递模板信息
+
+  // 将模板信息保存到localStorage
+  localStorage.setItem('selected_template', JSON.stringify({
+    id: template.id,
+    name: template.name,
+    content: template.template_content,
+    variables: template.variables
+  }))
+
+  // 跳转到聊天页面
+  const router = useRouter()
+  router.push('/aigc/chat')
+}
+
+const generateWithAssistant = () => {
+  console.log('generateWithAssistant 函数被调用')
+
+  // 标记是从模板页面跳转到助手
+  localStorage.setItem('from_template_page', 'true')
+  localStorage.removeItem('prompt_to_save') // 清除之前的提示词数据
+
+  message.info('即将跳转到提示词助手，生成完成后可以保存为模板')
+
+  // 直接跳转到提示词助手页面
+  console.log('准备跳转到提示词助手页面')
+  window.location.href = '/aigc/prompt-assistant'
 }
 
 const getTemplateTypeLabel = (type) => {
+  if (!templateTypeOptions.value || !templateTypeOptions.value.length) return type
   const option = templateTypeOptions.value.find(item => item.value === type)
   return option ? option.label : type
 }
@@ -760,7 +572,6 @@ const getTemplateActionOptions = (template) => {
   if (!template.is_system) {
     options.push(
       { type: 'divider' },
-      { label: '编辑', key: 'edit' },
       { label: '复制', key: 'copy' },
       { label: '删除', key: 'delete' }
     )
@@ -783,9 +594,6 @@ const handleTemplateAction = (key, template) => {
     case 'use':
       useTemplate(template)
       break
-    case 'edit':
-      editTemplate(template)
-      break
     case 'copy':
       copyTemplate(template)
       break
@@ -804,9 +612,19 @@ const copyTemplate = (template) => {
   delete newTemplate.created_at
   delete newTemplate.updated_at
   newTemplate.name = `${template.name} (副本)`
-  Object.assign(templateForm, newTemplate)
-  createModalVisible.value = true
-  message.success('模板已复制')
+  // 复制模板时直接调用API，不需要表单
+  createTemplateCopy(newTemplate)
+}
+
+const createTemplateCopy = async (templateData) => {
+  try {
+    await request.post('/ideological/templates/', templateData)
+    message.success('模板复制成功')
+    fetchTemplates()
+    fetchStatistics()
+  } catch (error) {
+    message.error('模板复制失败')
+  }
 }
 
 const deleteTemplate = (template) => {
@@ -829,14 +647,43 @@ const deleteTemplate = (template) => {
 }
 
 const rateTemplate = (template) => {
-  message.info(`评分功能开发中`)
+  // 创建一个简单的评分弹窗
+  dialog.create({
+    title: `为"${template.name}"评分`,
+    content: () => {
+      const rating = ref(3)
+      return h('div', { style: 'padding: 20px; text-align: center;' }, [
+        h('p', { style: 'margin-bottom: 16px; color: #666;' }, '请为这个提示词模板评分：'),
+        h('div', { style: 'margin-bottom: 16px;' }, [
+          h(NRate, {
+            value: rating.value,
+            'onUpdate:value': (val) => { rating.value = val },
+            size: 'large'
+          })
+        ]),
+        h('p', { style: 'color: #999; font-size: 12px;' }, `当前评分: ${template.rating} (${template.rating_count}人评价)`)
+      ])
+    },
+    positiveText: '确定',
+    negativeText: '取消',
+    onPositiveClick: async () => {
+      try {
+        await request.post(`/ideological/templates/${template.id}/rate`, {}, { params: { rating: 4 } })
+        message.success('评分成功！')
+        fetchTemplates() // 刷新列表
+        fetchStatistics() // 刷新统计
+      } catch (error) {
+        message.error('评分失败')
+      }
+    }
+  })
 }
 
 const showSystemTemplates = async () => {
   try {
     const response = await request.get('/ideological/templates/system/list')
-    templatesList.value = response
-    pagination.itemCount = response.length
+    templatesList.value = response.data || []
+    pagination.itemCount = (response.data || []).length
     message.success('已切换到系统模板视图')
   } catch (error) {
     message.error('获取系统模板失败')
@@ -844,7 +691,53 @@ const showSystemTemplates = async () => {
 }
 
 const showImportModal = () => {
-  message.info('导入功能开发中')
+  dialog.create({
+    title: '导入提示词模板',
+    content: () => {
+      const importText = ref('')
+      return h('div', { style: 'padding: 20px;' }, [
+        h('p', { style: 'margin-bottom: 16px; color: #666;' }, '请输入要导入的提示词模板内容：'),
+        h('div', { style: 'margin-bottom: 16px;' }, [
+          h('textarea', {
+            value: importText.value,
+            'onInput': (e) => { importText.value = e.target.value },
+            placeholder: '请输入提示词模板内容，使用 {{变量名}} 格式定义变量...',
+            style: 'width: 100%; height: 120px; padding: 8px; border: 1px solid #ccc; border-radius: 4px; resize: vertical;'
+          })
+        ]),
+        h('p', { style: 'color: #999; font-size: 12px;' }, '支持格式：纯文本提示词，变量用 {{变量名}} 格式')
+      ])
+    },
+    positiveText: '导入',
+    negativeText: '取消',
+    onPositiveClick: async () => {
+      if (!importText.value.trim()) {
+        message.warning('请输入模板内容')
+        return false
+      }
+      try {
+        // 提取变量
+        const variables = [...new Set(importText.value.match(/\{\{(\w+)\}\}/g) || [])]
+          .map(match => match.slice(2, -2))
+
+        const templateData = {
+          name: `导入模板_${Date.now()}`,
+          description: '通过导入创建的提示词模板',
+          template_type: 'content_optimization',
+          template_content: importText.value,
+          variables: variables,
+          category: '导入模板'
+        }
+
+        await request.post('/ideological/templates/', templateData)
+        message.success('模板导入成功！')
+        fetchTemplates() // 刷新列表
+        fetchStatistics() // 刷新统计
+      } catch (error) {
+        message.error('模板导入失败')
+      }
+    }
+  })
 }
 
 const formatDate = (dateString) => {
@@ -862,6 +755,15 @@ const formatDate = (dateString) => {
 
 // 初始化
 onMounted(() => {
+  // 确保开发环境有认证token
+  if (import.meta.env.DEV) {
+    const currentToken = localStorage.getItem('access_token')
+    if (!currentToken || currentToken !== 'dev') {
+      localStorage.setItem('access_token', 'dev')
+      console.log('🔧 提示词模板页面：已设置认证token')
+    }
+  }
+
   fetchOptions()
   fetchTemplates()
   fetchStatistics()
@@ -876,11 +778,7 @@ onMounted(() => {
 }
 
 .page-header {
-  background: linear-gradient(135deg, #7c3aed 0%, #a855f7 100%);
-  color: white;
-  padding: 24px;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(124, 58, 237, 0.2);
+  margin-bottom: 16px;
 }
 
 .header-content {
@@ -890,15 +788,9 @@ onMounted(() => {
 }
 
 .title-section h1 {
-  margin: 0 0 8px 0;
+  margin: 0;
   font-size: 24px;
   font-weight: 600;
-}
-
-.title-section p {
-  margin: 0;
-  opacity: 0.9;
-  font-size: 14px;
 }
 
 .search-section {
@@ -963,17 +855,58 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  font-size: 14px;
+  line-height: 1.6;
+  word-wrap: break-word;
+  word-break: break-word;
+  overflow-wrap: break-word;
 }
 
 .template-description {
   color: var(--n-text-color-depth-3);
   margin: 0;
   line-height: 1.5;
+  word-wrap: break-word;
+  word-break: break-all;
+  white-space: normal;
 }
 
 .template-preview {
   max-height: 120px;
   overflow: hidden;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.code-content {
+  background-color: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 4px;
+  padding: 12px;
+  font-family: 'Courier New', monospace;
+  font-size: 11px;
+  line-height: 1.4;
+  color: #495057;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  word-break: break-all;
+  overflow: hidden;
+}
+
+.preview-code-content {
+  background-color: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 4px;
+  padding: 16px;
+  font-family: 'Courier New', monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #495057;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  word-break: break-word;
+  max-height: 400px;
+  overflow-y: auto;
 }
 
 .template-variables {

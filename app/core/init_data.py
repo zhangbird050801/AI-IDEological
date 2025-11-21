@@ -6,8 +6,9 @@
 import asyncio
 import logging
 from tortoise import Tortoise
-from app.models.ideological import PromptTemplate
+from app.models.ideological import PromptTemplate, PromptAssistantTemplate
 from app.models.admin import User
+from .init_prompt_assistant_data import init_prompt_assistant_templates
 
 logger = logging.getLogger(__name__)
 
@@ -325,6 +326,9 @@ async def init_system_data():
 
         # 初始化默认模板
         await init_default_templates()
+
+        # 初始化提示词助手模板
+        await init_prompt_assistant_templates()
 
         logger.info("系统数据初始化完成！")
 

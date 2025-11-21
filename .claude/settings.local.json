@@ -3,7 +3,17 @@
     "allow": [
       "Bash(uv run python:*)",
       "Bash(timeout 10 uv run python:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(python:*)",
+      "Bash(source:*)",
+      "Bash(find:*)",
+      "Bash(node:*)",
+      "Bash(kill:*)",
+      "Bash(uv run pnpm dev:*)",
+      "Bash(uv run pnpm list:*)",
+      "Bash(uv run pnpm add:*)",
+      "Bash(npm run dev)",
+      "Bash(uvicorn:*)"
     ],
     "deny": [],
     "ask": []

@@ -295,3 +295,128 @@ class BatchOperationResponse(BaseModel):
     failed_count: int = Field(..., description="失败数量")
     failed_ids: List[int] = Field(default=[], description="失败的ID列表")
     errors: List[str] = Field(default=[], description="错误信息列表")
+
+
+# 提示词助手相关模型
+class PromptAssistantConversationBase(BaseModel):
+    session_id: str = Field(..., description="会话ID")
+    user_message: str = Field(..., description="用户消息")
+    assistant_message: str = Field(..., description="助手回复")
+    session_stage: str = Field(default="greeting", description="会话阶段")
+    extracted_requirements: dict = Field(default=dict, description="提取的需求信息")
+    suggested_prompt: Optional[str] = Field(None, description="建议的提示词")
+    user_feedback: Optional[str] = Field(None, description="用户反馈")
+    is_final_prompt_generated: bool = Field(default=False, description="是否已生成最终提示词")
+    final_prompt: Optional[str] = Field(None, description="最终生成的提示词")
+    token_count: Optional[int] = Field(None, description="Token消耗数量")
+    generation_time: Optional[int] = Field(None, description="生成耗时(毫秒)")
+
+
+class PromptAssistantConversationCreate(PromptAssistantConversationBase):
+    user_id: int = Field(..., description="用户ID")
+
+
+class PromptAssistantConversationUpdate(BaseModel):
+    user_message: Optional[str] = Field(None, description="用户消息")
+    assistant_message: Optional[str] = Field(None, description="助手回复")
+    session_stage: Optional[str] = Field(None, description="会话阶段")
+    extracted_requirements: Optional[dict] = Field(None, description="提取的需求信息")
+    suggested_prompt: Optional[str] = Field(None, description="建议的提示词")
+    user_feedback: Optional[str] = Field(None, description="用户反馈")
+    is_final_prompt_generated: Optional[bool] = Field(None, description="是否已生成最终提示词")
+    final_prompt: Optional[str] = Field(None, description="最终生成的提示词")
+    token_count: Optional[int] = Field(None, description="Token消耗数量")
+    generation_time: Optional[int] = Field(None, description="生成耗时(毫秒)")
+
+
+class PromptAssistantConversationInDB(PromptAssistantConversationBase):
+    id: int
+    user_id: int
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class PromptAssistantConversation(PromptAssistantConversationInDB):
+    pass
+
+
+class PromptAssistantTemplateBase(BaseModel):
+    name: str = Field(..., description="模板名称")
+    description: str = Field(..., description="模板描述")
+    template_type: str = Field(..., description="模板类型")
+    target_audience: str = Field(..., description="目标受众")
+    use_case_scenario: str = Field(..., description="使用场景")
+    sample_prompts: List[str] = Field(default=[], description="示例提示词列表")
+    key_questions: List[str] = Field(default=[], description="关键问题列表")
+    best_practices: List[str] = Field(default=[], description="最佳实践列表")
+    common_variables: List[str] = Field(default=[], description="常用变量列表")
+    is_active: bool = Field(default=True, description="是否启用")
+
+
+class PromptAssistantTemplateCreate(PromptAssistantTemplateBase):
+    pass
+
+
+class PromptAssistantTemplateUpdate(BaseModel):
+    name: Optional[str] = Field(None, description="模板名称")
+    description: Optional[str] = Field(None, description="模板描述")
+    template_type: Optional[str] = Field(None, description="模板类型")
+    target_audience: Optional[str] = Field(None, description="目标受众")
+    use_case_scenario: Optional[str] = Field(None, description="使用场景")
+    sample_prompts: Optional[List[str]] = Field(None, description="示例提示词列表")
+    key_questions: Optional[List[str]] = Field(None, description="关键问题列表")
+    best_practices: Optional[List[str]] = Field(None, description="最佳实践列表")
+    common_variables: Optional[List[str]] = Field(None, description="常用变量列表")
+    is_active: Optional[bool] = Field(None, description="是否启用")
+
+
+class PromptAssistantTemplateInDB(PromptAssistantTemplateBase):
+    id: int
+    usage_count: int
+    rating: float
+    rating_count: int
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class PromptAssistantTemplate(PromptAssistantTemplateInDB):
+    pass
+
+
+# 提示词助手请求和响应模型
+class PromptAssistantRequest(BaseModel):
+    message: str = Field(..., description="用户消息")
+    session_id: Optional[str] = Field(None, description="会话ID，为空则创建新会话")
+    context: Optional[dict] = Field(None, description="上下文信息")
+
+
+class PromptAssistantResponse(BaseModel):
+    session_id: str = Field(..., description="会话ID")
+    assistant_message: str = Field(..., description="助手回复")
+    session_stage: str = Field(..., description="会话阶段")
+    extracted_requirements: dict = Field(default=dict, description="提取的需求信息")
+    suggested_prompt: Optional[str] = Field(None, description="建议的提示词")
+    is_final_prompt_ready: bool = Field(default=False, description="是否准备好最终提示词")
+    final_prompt: Optional[str] = Field(None, description="最终生成的提示词")
+    token_count: Optional[int] = Field(None, description="Token消耗数量")
+    generation_time: Optional[int] = Field(None, description="生成耗时(毫秒)")
+
+
+class PromptAssistantSessionRequest(BaseModel):
+    session_id: str = Field(..., description="会话ID")
+
+
+class PromptAssistantSessionResponse(BaseModel):
+    session_id: str = Field(..., description="会话ID")
+    conversation_history: List[PromptAssistantConversation] = Field(..., description="对话历史")
+    current_stage: str = Field(..., description="当前阶段")
+    extracted_requirements: dict = Field(default=dict, description="提取的需求信息")
+    suggested_prompts: List[str] = Field(default=[], description="建议的提示词列表")
+    is_completed: bool = Field(default=False, description="是否已完成")
+    final_prompt: Optional[str] = Field(None, description="最终提示词")

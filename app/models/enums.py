@@ -53,3 +53,13 @@ class TemplateType(StrEnum):
     CONTENT_OPTIMIZATION = "content_optimization"  # 内容优化
     TEACHING_DESIGN = "teaching_design"  # 教学设计
     KNOWLEDGE_POINT = "knowledge_point"  # 知识点讲解
+
+
+class PromptAssistantSession(StrEnum):
+    GREETING = "greeting"  # 问候阶段
+    REQUIREMENT_GATHERING = "requirement_gathering"  # 需求收集阶段
+    CLARIFICATION = "clarification"  # 澄清阶段
+    DRAFTING = "drafting"  # 草稿阶段
+    REFINEMENT = "refinement"  # 优化阶段
+    FINALIZATION = "finalization"  # 最终确认阶段
+    COMPLETED = "completed"  # 已完成

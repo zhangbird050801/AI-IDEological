@@ -1,6 +1,6 @@
 from tortoise import fields
 from .base import BaseModel, TimestampMixin
-from .enums import CaseStatus, CaseType, ResourceType, TemplateType
+from .enums import CaseStatus, CaseType, ResourceType, TemplateType, PromptAssistantSession
 
 
 class IdeologicalCase(BaseModel, TimestampMixin):
@@ -124,3 +124,44 @@ class UserRating(BaseModel, TimestampMixin):
 
     class Meta:
         table = "user_rating"
+
+
+class PromptAssistantConversation(BaseModel, TimestampMixin):
+    """提示词助手对话记录"""
+    session_id = fields.CharField(max_length=100, description="会话ID", index=True)
+    user_message = fields.TextField(description="用户消息")
+    assistant_message = fields.TextField(description="助手回复")
+    session_stage = fields.CharEnumField(PromptAssistantSession, default=PromptAssistantSession.GREETING, description="会话阶段")
+    extracted_requirements = fields.JSONField(default=dict, description="提取的需求信息")
+    suggested_prompt = fields.TextField(null=True, description="建议的提示词")
+    user_feedback = fields.TextField(null=True, description="用户反馈")
+    is_final_prompt_generated = fields.BooleanField(default=False, description="是否已生成最终提示词")
+    final_prompt = fields.TextField(null=True, description="最终生成的提示词")
+    token_count = fields.IntField(null=True, description="Token消耗数量")
+    generation_time = fields.IntField(null=True, description="生成耗时(毫秒)")
+
+    # 关系字段
+    user = fields.ForeignKeyField('models.User', related_name='prompt_assistant_conversations', null=True, on_delete=fields.CASCADE)
+
+    class Meta:
+        table = "prompt_assistant_conversation"
+
+
+class PromptAssistantTemplate(BaseModel, TimestampMixin):
+    """提示词助手预置模板"""
+    name = fields.CharField(max_length=100, description="模板名称", index=True)
+    description = fields.TextField(description="模板描述")
+    template_type = fields.CharField(max_length=50, description="模板类型", index=True)
+    target_audience = fields.CharField(max_length=100, description="目标受众")
+    use_case_scenario = fields.TextField(description="使用场景")
+    sample_prompts = fields.JSONField(default=list, description="示例提示词列表")
+    key_questions = fields.JSONField(default=list, description="关键问题列表")
+    best_practices = fields.JSONField(default=list, description="最佳实践列表")
+    common_variables = fields.JSONField(default=list, description="常用变量列表")
+    is_active = fields.BooleanField(default=True, description="是否启用", index=True)
+    usage_count = fields.IntField(default=0, description="使用次数", index=True)
+    rating = fields.FloatField(default=0.0, description="评分(0-5)", index=True)
+    rating_count = fields.IntField(default=0, description="评分人数", index=True)
+
+    class Meta:
+        table = "prompt_assistant_template"

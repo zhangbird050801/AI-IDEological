@@ -29,7 +29,7 @@ async def init_database():
             'host': 'localhost',
             'port': 3306,
             'user': 'root',
-            'password': 'root',
+            'password': '12345678',
             'database': 'AIdata'
         }
 

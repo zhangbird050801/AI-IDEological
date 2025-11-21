@@ -35,7 +35,7 @@ class Settings(BaseSettings):
                     "host": "localhost",  # Database host address
                     "port": 3306,  # Database port
                     "user": "root",  # Database username
-                    "password": "root",  # Database password
+                    "password": "12345678",  # Database password
                     "database": "AIdata",  # Database name
                 },
             },

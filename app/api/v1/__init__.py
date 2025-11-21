@@ -12,6 +12,7 @@ from .users import users_router
 from .aigc import chat as aigc_chat
 from .aigc import enhanced as aigc_enhanced
 from .ideological import router as ideological_router
+from .ideological.prompt_assistant import router as prompt_assistant_router
 
 v1_router = APIRouter()
 
@@ -25,3 +26,4 @@ v1_router.include_router(auditlog_router, prefix="/auditlog", dependencies=[Depe
 v1_router.include_router(aigc_chat.router, prefix="/aigc")
 v1_router.include_router(aigc_enhanced.router, prefix="/aigc/enhanced", dependencies=[DependPermission])
 v1_router.include_router(ideological_router, prefix="/ideological")
+v1_router.include_router(prompt_assistant_router, prefix="/ideological/prompt-assistant", dependencies=[DependPermission])
