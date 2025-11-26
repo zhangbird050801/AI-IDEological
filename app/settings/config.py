@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 day
     # Database URL - 可以通过环境变量 DATABASE_URL 覆盖
-    DATABASE_URL: str = "mysql://root:12345678@localhost:3306/AIdata"
+    DATABASE_URL: str = "mysql://root:root@localhost:3306/AIdata"
 
     TORTOISE_ORM: dict = {
         "connections": {
@@ -35,7 +35,7 @@ class Settings(BaseSettings):
                     "host": "localhost",  # Database host address
                     "port": 3306,  # Database port
                     "user": "root",  # Database username
-                    "password": "12345678",  # Database password
+                    "password": "root",  # Database password
                     "database": "AIdata",  # Database name
                 },
             },

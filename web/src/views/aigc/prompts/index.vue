@@ -2,10 +2,11 @@
   <AppPage>
     <div class="prompts-page">
       <!-- 页面头部 -->
-      <n-card class="page-header" :bordered="false">
+      <div class="page-header">
         <div class="header-content">
           <div class="title-section">
             <h1>提示词模板库</h1>
+            <p>高效的提示词模板，助力快速生成优质思政内容</p>
           </div>
 
           <div class="actions-section">
@@ -31,21 +32,29 @@
             </n-space>
           </div>
         </div>
-      </n-card>
+      </div>
 
       <!-- 统计信息 -->
-      <n-grid :cols="4" :x-gap="16">
+      <n-grid :cols="4" :x-gap="16" style="margin-bottom: 16px">
         <n-grid-item>
-          <n-statistic label="总模板数" :value="totalTemplates" />
+          <n-card :bordered="false" size="small">
+            <n-statistic label="总模板数" :value="totalTemplates" />
+          </n-card>
         </n-grid-item>
         <n-grid-item>
-          <n-statistic label="我的模板" :value="myTemplates" />
+          <n-card :bordered="false" size="small">
+            <n-statistic label="我的模板" :value="myTemplates" />
+          </n-card>
         </n-grid-item>
         <n-grid-item>
-          <n-statistic label="系统模板" :value="systemTemplates" />
+          <n-card :bordered="false" size="small">
+            <n-statistic label="系统模板" :value="systemTemplates" />
+          </n-card>
         </n-grid-item>
         <n-grid-item>
-          <n-statistic label="今日使用" :value="todayUsage" />
+          <n-card :bordered="false" size="small">
+            <n-statistic label="今日使用" :value="todayUsage" />
+          </n-card>
         </n-grid-item>
       </n-grid>
 
@@ -255,25 +264,25 @@
       style="width: 800px"
       title="模板预览"
     >
-      <div v-if="previewTemplate">
+      <div v-if="previewTemplateData">
         <n-descriptions :column="1" bordered>
           <n-descriptions-item label="模板名称">
-            {{ previewTemplate.name }}
+            {{ previewTemplateData.name }}
           </n-descriptions-item>
           <n-descriptions-item label="模板类型">
             <n-tag type="info">
-              {{ getTemplateTypeLabel(previewTemplate.template_type) }}
+              {{ getTemplateTypeLabel(previewTemplateData.template_type) }}
             </n-tag>
           </n-descriptions-item>
           <n-descriptions-item label="分类">
-            {{ previewTemplate.category }}
+            {{ previewTemplateData.category }}
           </n-descriptions-item>
           <n-descriptions-item label="描述">
-            {{ previewTemplate.description || '' }}
+            {{ previewTemplateData.description || '' }}
           </n-descriptions-item>
-          <n-descriptions-item label="变量" v-if="previewTemplate.variables && previewTemplate.variables.length > 0">
+          <n-descriptions-item label="变量" v-if="previewTemplateData.variables && previewTemplateData.variables.length > 0">
             <n-space wrap>
-              <n-tag v-for="variable in previewTemplate.variables" :key="variable" size="small">
+              <n-tag v-for="variable in previewTemplateData.variables" :key="variable" size="small">
                 {{ '{' + '{' + variable + '}' + '}' }}
               </n-tag>
             </n-space>
@@ -283,7 +292,7 @@
         <div style="margin-top: 16px">
           <h4>模板内容：</h4>
           <div class="preview-code-content">
-            {{ previewTemplate.template_content || '' }}
+            {{ previewTemplateData.template_content || '' }}
           </div>
         </div>
       </div>
@@ -291,7 +300,7 @@
       <template #action>
         <n-space>
           <n-button @click="previewModalVisible = false">关闭</n-button>
-          <n-button type="primary" @click="useTemplate(previewTemplate)">
+          <n-button type="primary" @click="useTemplate(previewTemplateData)">
             使用此模板
           </n-button>
         </n-space>
@@ -346,7 +355,7 @@ const dialog = useDialog()
 
 const loading = ref(false)
 const previewModalVisible = ref(false)
-const previewTemplate = ref(null)
+const previewTemplateData = ref(null)
 
 // 调试信息
 console.log('AIGCPrompts 组件已加载')
@@ -477,17 +486,24 @@ const fetchStatistics = async () => {
   try {
     // 获取统计数据
     const allResponse = await request.get('/ideological/templates/', { params: { page_size: 1 } })
-    totalTemplates.value = allResponse.data?.total || 0
+    const total = allResponse?.data?.total ?? allResponse?.total ?? 0
+    
+    totalTemplates.value = total
 
     const systemResponse = await request.get('/ideological/templates/system/list')
-    systemTemplates.value = (systemResponse.data || []).length
+    const systemCount = (systemResponse?.data || systemResponse || []).length
+    systemTemplates.value = systemCount
 
-    myTemplates.value = totalTemplates.value - systemTemplates.value
+    myTemplates.value = total - systemCount
 
     // 模拟今日使用数据
     todayUsage.value = Math.floor(Math.random() * 50) + 10
   } catch (error) {
     console.error('获取统计数据失败:', error)
+    totalTemplates.value = 0
+    systemTemplates.value = 0
+    myTemplates.value = 0
+    todayUsage.value = 0
   }
 }
 
@@ -518,8 +534,13 @@ const handlePageSizeChange = (pageSize) => {
   fetchTemplates()
 }
 
+const previewTemplate = (template) => {
+  previewTemplateData.value = template
+  previewModalVisible.value = true
+}
+
 const viewTemplateDetail = (template) => {
-  previewTemplate.value = template
+  previewTemplateData.value = template
   previewModalVisible.value = true
 }
 
@@ -778,6 +799,11 @@ onMounted(() => {
 }
 
 .page-header {
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  color: white;
+  padding: 24px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.2);
   margin-bottom: 16px;
 }
 
@@ -788,9 +814,15 @@ onMounted(() => {
 }
 
 .title-section h1 {
-  margin: 0;
+  margin: 0 0 8px 0;
   font-size: 24px;
   font-weight: 600;
+}
+
+.title-section p {
+  margin: 0;
+  opacity: 0.9;
+  font-size: 14px;
 }
 
 .search-section {

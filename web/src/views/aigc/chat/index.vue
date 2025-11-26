@@ -90,6 +90,81 @@
         </div>
       </div>
     </div>
+    
+    <!-- 保存案例模态框 -->
+    <n-modal
+      v-model:show="saveCaseVisible"
+      preset="dialog"
+      title="保存为案例"
+      positive-text="保存"
+      negative-text="取消"
+      @positive-click="confirmSaveCase"
+      style="width: 700px"
+    >
+      <n-form :model="caseForm" label-placement="left" label-width="140px">
+        <n-form-item label="案例标题" required>
+          <n-input v-model:value="caseForm.title" placeholder="请输入案例标题" />
+        </n-form-item>
+        
+        <n-form-item label="软件工程章节" required>
+          <n-select
+            v-model:value="caseForm.software_engineering_chapter"
+            :options="chapterOptions"
+            placeholder="请选择章节"
+            filterable
+          />
+        </n-form-item>
+        
+        <n-form-item label="思政主题" required>
+          <n-select
+            v-model:value="caseForm.ideological_theme"
+            :options="themeOptions"
+            placeholder="请选择思政主题"
+            filterable
+          />
+        </n-form-item>
+        
+        <n-form-item label="案例类型" required>
+          <n-select
+            v-model:value="caseForm.case_type"
+            :options="caseTypeOptions"
+            placeholder="请选择案例类型"
+          />
+        </n-form-item>
+        
+        <n-form-item label="难度等级">
+          <n-input-number
+            v-model:value="caseForm.difficulty_level"
+            :min="1"
+            :max="5"
+            style="width: 100%"
+          >
+            <template #suffix>级</template>
+          </n-input-number>
+        </n-form-item>
+        
+        <n-form-item label="标签">
+          <n-dynamic-tags v-model:value="caseForm.tags" />
+        </n-form-item>
+        
+        <n-form-item label="关键知识点">
+          <n-dynamic-tags v-model:value="caseForm.key_points" />
+        </n-form-item>
+        
+        <n-form-item label="讨论问题">
+          <n-dynamic-tags v-model:value="caseForm.discussion_questions" />
+        </n-form-item>
+        
+        <n-form-item label="教学建议">
+          <n-input
+            v-model:value="caseForm.teaching_suggestions"
+            type="textarea"
+            placeholder="请输入教学建议"
+            :autosize="{ minRows: 3, maxRows: 6 }"
+          />
+        </n-form-item>
+      </n-form>
+    </n-modal>
   </AppPage>
 </template>
 
@@ -102,6 +177,13 @@ import {
   NEmpty,
   NButton,
   NIcon,
+  NModal,
+  NForm,
+  NFormItem,
+  NInput,
+  NSelect,
+  NInputNumber,
+  NDynamicTags,
   useMessage,
   useLoadingBar,
 } from 'naive-ui'
@@ -110,6 +192,7 @@ import AppPage from '@/components/page/AppPage.vue'
 import ChatContainer from '@/components/chat/ChatContainer.vue'
 import ChatInput from '@/components/chat/ChatInput.vue'
 import { chatAPI, chatStream } from '@/api/aigc'
+import { request } from '@/utils/http'
 
 // 响应式数据
 const message = useMessage()
@@ -129,6 +212,32 @@ const usageTime = ref(0)
 
 // 聊天历史
 const chatHistory = ref([])
+
+// 保存案例相关
+const saveCaseVisible = ref(false)
+const currentSaveMessage = ref(null)
+const caseForm = reactive({
+  title: '',
+  software_engineering_chapter: '',
+  ideological_theme: '',
+  case_type: 'case_study',
+  tags: [],
+  key_points: [],
+  discussion_questions: [],
+  teaching_suggestions: '',
+  difficulty_level: 3,
+})
+
+// 选项数据
+const chapterOptions = ref([])
+const themeOptions = ref([])
+const caseTypeOptions = [
+  { label: '案例分析', value: 'case_study' },
+  { label: '讨论题', value: 'discussion' },
+  { label: '思考题', value: 'thinking' },
+  { label: '示例', value: 'example' },
+  { label: '实践项目', value: 'practice' },
+]
 
 // 处理发送消息
 async function handleSendMessage(data) {
@@ -157,6 +266,7 @@ async function handleSendMessage(data) {
       content: '',
       timestamp: new Date().toISOString(),
       isStreaming: true,
+      historyId: null, // 用于保存生成历史ID
     })
     messages.value.push(assistantMessage)
 
@@ -207,6 +317,10 @@ async function handleSendMessage(data) {
       loadingBar.finish()
       todayGenerated.value++
       totalCases.value++
+      
+      // 保存生成历史到后端（暂时注释掉，避免错误）
+      // await saveGenerationHistory(userMessage.content, assistantMessage.content, assistantMessage)
+      
       saveToHistory()
     } catch (streamErr) {
       console.error('Stream error, falling back to non-streaming:', streamErr)
@@ -216,15 +330,21 @@ async function handleSendMessage(data) {
       // fallback to non-streaming API
       const res = await chatAPI(msgArr)
       const finalReply = (res && (res.reply ?? res.data?.reply)) || ''
-      messages.value.push({
+      const fallbackMessage = {
         id: Date.now() + 2,
         role: 'assistant',
         content: finalReply,
         timestamp: new Date().toISOString(),
-      })
+        historyId: null,
+      }
+      messages.value.push(fallbackMessage)
       loadingBar.finish()
       todayGenerated.value++
       totalCases.value++
+      
+      // 保存生成历史到后端（暂时注释掉，避免错误）
+      // await saveGenerationHistory(userMessage.content, finalReply, fallbackMessage)
+      
       saveToHistory()
     }
   } catch (error) {
@@ -258,10 +378,103 @@ function handleRegenerate(messageId) {
   }
 }
 
+// 保存生成历史到后端
+async function saveGenerationHistory(userInput, generatedContent, messageObj) {
+  try {
+    // 暂时为每条消息生成一个临时ID（后续需要实现真实的后端保存）
+    messageObj.historyId = Date.now()
+    
+    // TODO: 实现真实的后端API调用
+    // const historyData = {
+    //   user_input: userInput,
+    //   generated_content: generatedContent,
+    //   generation_type: 'aigc_chat',
+    //   software_engineering_chapter: '',
+    //   ideological_theme: '',
+    // }
+    // const response = await request.post('/aigc/enhanced/history', historyData)
+    // if (response && response.id) {
+    //   messageObj.historyId = response.id
+    // }
+  } catch (error) {
+    console.error('保存生成历史失败:', error)
+    // 即使失败也分配一个临时ID，确保功能可用
+    messageObj.historyId = Date.now()
+  }
+}
+
 // 保存案例
-function handleSaveCase(messageContent) {
-  // 这里应该调用API保存案例到案例库
-  message.success('案例已保存到案例库')
+function handleSaveCase(messageObj) {
+  // 检查消息是否有内容
+  if (!messageObj.content || messageObj.content.trim() === '') {
+    message.error('消息内容为空，无法保存为案例')
+    return
+  }
+  
+  currentSaveMessage.value = messageObj
+  
+  // 重置表单
+  Object.assign(caseForm, {
+    title: '',
+    software_engineering_chapter: '',
+    ideological_theme: '',
+    case_type: 'case_study',
+    tags: [],
+    key_points: [],
+    discussion_questions: [],
+    teaching_suggestions: '',
+    difficulty_level: 3,
+  })
+  
+  // 自动提取标题（取内容前50个字符）
+  const titleText = messageObj.content.substring(0, 50).replace(/\n/g, ' ')
+  caseForm.title = titleText + (messageObj.content.length > 50 ? '...' : '')
+  
+  saveCaseVisible.value = true
+}
+
+// 确认保存案例
+async function confirmSaveCase() {
+  return new Promise(async (resolve, reject) => {
+    try {
+      // 验证必填字段
+      if (!caseForm.title || !caseForm.software_engineering_chapter || !caseForm.ideological_theme) {
+        message.error('请填写所有必填项')
+        reject(new Error('缺少必填项'))
+        return
+      }
+      
+      const caseData = {
+        title: caseForm.title.trim(),
+        content: currentSaveMessage.value.content, // 直接使用消息内容
+        software_engineering_chapter: caseForm.software_engineering_chapter,
+        ideological_theme: caseForm.ideological_theme,
+        case_type: caseForm.case_type || 'case_study',
+        tags: caseForm.tags || [],
+        key_points: caseForm.key_points || [],
+        discussion_questions: caseForm.discussion_questions || [],
+        teaching_suggestions: caseForm.teaching_suggestions || '',
+        difficulty_level: caseForm.difficulty_level || 3,
+        is_public: true, // 默认公开
+        status: 'published', // 直接发布，不需要审核
+      }
+      
+      console.log('保存案例数据:', caseData)
+      
+      // 直接调用创建案例的API
+      const response = await request.post('/ideological/cases/', caseData)
+      
+      console.log('保存成功:', response)
+      message.success('案例已成功保存到案例库！')
+      resolve(true)
+    } catch (error) {
+      console.error('保存案例失败:', error)
+      // 显示更详细的错误信息
+      const errorMsg = error.response?.data?.detail || error.message || '保存案例失败，请重试'
+      message.error(errorMsg)
+      reject(error)
+    }
+  })
 }
 
 // 清空历史
@@ -342,6 +555,37 @@ function showAllHistory() {
   message.info('查看全部历史功能开发中')
 }
 
+// 获取选项数据
+async function fetchOptions() {
+  try {
+    const chaptersResponse = await request.get('/ideological/cases/chapters/list')
+    chapterOptions.value = (chaptersResponse.data || chaptersResponse || []).map(item => ({
+      label: item,
+      value: item
+    }))
+  } catch (error) {
+    console.error('获取章节选项失败:', error)
+    chapterOptions.value = [
+      '软件工程概述', '软件过程模型', '需求分析', '系统设计', '编码实现',
+      '软件测试', '软件维护', '项目管理', '软件质量', '软件工程前沿'
+    ].map(item => ({ label: item, value: item }))
+  }
+  
+  try {
+    const themesResponse = await request.get('/ideological/templates/themes/list')
+    themeOptions.value = (themesResponse.data || themesResponse || []).map(item => ({
+      label: item,
+      value: item
+    }))
+  } catch (error) {
+    console.error('获取主题选项失败:', error)
+    themeOptions.value = [
+      '工匠精神', '创新精神', '团队协作', '责任担当', '诚信品质',
+      '法治意识', '科学精神', '人文素养', '家国情怀', '国际视野'
+    ].map(item => ({ label: item, value: item }))
+  }
+}
+
 // 组件挂载时初始化
 onMounted(() => {
   // 模拟加载统计数据
@@ -349,6 +593,9 @@ onMounted(() => {
   totalCases.value = 156
   usageTime.value = 45
 
+  // 获取选项数据
+  fetchOptions()
+  
   // 从localStorage加载历史记录
   const savedHistory = localStorage.getItem('aigc-chat-history')
   if (savedHistory) {
@@ -356,6 +603,25 @@ onMounted(() => {
       chatHistory.value = JSON.parse(savedHistory)
     } catch (e) {
       console.warn('Failed to load chat history:', e)
+    }
+  }
+
+  // 检查是否有选中的模板
+  const selectedTemplate = localStorage.getItem('selected_template')
+  if (selectedTemplate) {
+    try {
+      const template = JSON.parse(selectedTemplate)
+      // 填充模板内容到输入框
+      nextTick(() => {
+        if (chatInput.value && template.content) {
+          chatInput.value.setContent(template.content)
+          message.success(`已加载模板: ${template.name}`)
+        }
+      })
+      // 清除已使用的模板
+      localStorage.removeItem('selected_template')
+    } catch (e) {
+      console.warn('Failed to load selected template:', e)
     }
   }
 })

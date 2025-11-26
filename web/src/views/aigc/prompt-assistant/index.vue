@@ -123,7 +123,7 @@
                             </n-button>
                           </n-space>
                         </template>
-                        <n-code :code="message.suggestedPrompt" language="text" :line-height="1.6" />
+                        <pre class="prompt-code-display">{{ message.suggestedPrompt }}</pre>
                       </n-card>
                     </div>
 
@@ -152,7 +152,7 @@
                             </n-button>
                           </n-space>
                         </template>
-                        <n-code :code="message.finalPrompt" language="text" :line-height="1.6" />
+                        <pre class="prompt-code-display">{{ message.finalPrompt }}</pre>
 
                         <!-- 添加快速保存提示 -->
                         <div class="save-hint">
@@ -778,11 +778,21 @@ const clearChat = () => {
   })
 }
 
-
 const showTemplates = async () => {
   try {
     const response = await request.get('/ideological/prompt-assistant/templates')
-    templates.value = response
+    // 处理多种可能的响应格式
+    if (Array.isArray(response)) {
+      templates.value = response
+    } else if (response?.data && Array.isArray(response.data)) {
+      templates.value = response.data
+    } else if (response?.items && Array.isArray(response.items)) {
+      templates.value = response.items
+    } else {
+      templates.value = []
+    }
+    
+    console.log('加载到的模板数量:', templates.value.length)
     templatesVisible.value = true
   } catch (error) {
     console.error('获取模板失败:', error)
@@ -1163,6 +1173,33 @@ onMounted(() => {
 
 .final-prompt-card {
   margin-top: 12px;
+}
+
+/* 提示词代码显示框样式 */
+.prompt-code-display {
+  margin: 0;
+  padding: 16px;
+  background: #f5f5f5;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 14px;
+  line-height: 1.6;
+  color: #333;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  max-height: 600px;
+  overflow-y: auto;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* 深色模式适配 */
+html[data-theme="dark"] .prompt-code-display {
+  background: #1e1e1e;
+  border-color: #3a3a3a;
+  color: #d4d4d4;
 }
 
 .save-hint {

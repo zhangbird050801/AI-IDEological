@@ -292,9 +292,11 @@ async def get_recommended_cases(
 async def rate_case(
     case_id: int,
     rating: int = Query(..., ge=1, le=5, description="评分(1-5)"),
+    comment: str = Query(None, description="评价内容"),
     current_user: User = Depends(AuthControl.is_authed)
 ):
     case = await case_service.update_case_rating(case_id, rating)
+    # TODO: 将评论保存到数据库（需要创建评论表）
     return IdeologicalCase.from_orm(case)
 
 @router.get("/chapters/list", summary="获取软件工程章节列表")

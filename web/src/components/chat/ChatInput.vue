@@ -261,10 +261,19 @@ function useTemplate(template) {
   })
 }
 
+// 设置输入内容
+function setContent(content) {
+  inputText.value = content
+  nextTick(() => {
+    inputRef.value?.focus()
+  })
+}
+
 // 暴露方法供父组件调用
 defineExpose({
   focus: () => inputRef.value?.focus(),
   clear: clearInput,
+  setContent,
 })
 </script>
 

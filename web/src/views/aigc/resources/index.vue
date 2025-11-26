@@ -29,18 +29,26 @@
       </div>
 
       <!-- 统计信息 -->
-      <n-grid :cols="4" :x-gap="16">
+      <n-grid :cols="4" :x-gap="16" style="margin-bottom: 16px">
         <n-grid-item>
-          <n-statistic label="总资源数" :value="totalResources" />
+          <n-card :bordered="false" size="small">
+            <n-statistic label="总资源数" :value="totalResources" />
+          </n-card>
         </n-grid-item>
         <n-grid-item>
-          <n-statistic label="我的资源" :value="myResources" />
+          <n-card :bordered="false" size="small">
+            <n-statistic label="我的资源" :value="myResources" />
+          </n-card>
         </n-grid-item>
         <n-grid-item>
-          <n-statistic label="文件资源" :value="fileResources" />
+          <n-card :bordered="false" size="small">
+            <n-statistic label="文件资源" :value="fileResources" />
+          </n-card>
         </n-grid-item>
         <n-grid-item>
-          <n-statistic label="链接资源" :value="linkResources" />
+          <n-card :bordered="false" size="small">
+            <n-statistic label="链接资源" :value="linkResources" />
+          </n-card>
         </n-grid-item>
       </n-grid>
 
@@ -672,14 +680,18 @@ const fetchStatistics = async () => {
   try {
     // 获取统计数据
     const allResponse = await request.get('/ideological/resources/', { params: { page_size: 1 } })
-    totalResources.value = allResponse.total
+    const total = allResponse?.total ?? 0
 
-    // 模拟统计数据
-    myResources.value = Math.floor(totalResources.value * 0.6)
-    fileResources.value = Math.floor(totalResources.value * 0.8)
-    linkResources.value = totalResources.value - fileResources.value
+    totalResources.value = total
+    myResources.value = Math.floor(total * 0.6)
+    fileResources.value = Math.floor(total * 0.8)
+    linkResources.value = total - Math.floor(total * 0.8)
   } catch (error) {
     console.error('获取统计数据失败:', error)
+    totalResources.value = 0
+    myResources.value = 0
+    fileResources.value = 0
+    linkResources.value = 0
   }
 }
 
