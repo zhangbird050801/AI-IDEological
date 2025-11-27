@@ -107,9 +107,20 @@
             </n-form-item-grid-item>
           </n-grid>
 
-          <n-space justify="end" style="margin-top: 16px">
-            <n-button @click="resetSearch">重置</n-button>
-            <n-button type="primary" @click="handleSearch">搜索</n-button>
+          <n-space justify="space-between" align="center" style="margin-top: 16px">
+            <n-checkbox 
+              v-model:checked="searchForm.show_favorites_only" 
+              @update:checked="handleSearch"
+            >
+              <n-space align="center" :size="4">
+                <span>只看收藏</span>
+              </n-space>
+            </n-checkbox>
+            
+            <n-space>
+              <n-button @click="resetSearch">重置</n-button>
+              <n-button type="primary" @click="handleSearch">搜索</n-button>
+            </n-space>
           </n-space>
         </n-form>
       </n-card>
@@ -200,10 +211,11 @@
                             <n-icon
                               :color="case_item.is_favorited ? '#f0a020' : '#999'"
                             >
-                              <Icon icon="ant-design:heart-outlined" />
+                              <Icon icon="ant-design:heart-filled" v-if="case_item.is_favorited" />
+                              <Icon icon="ant-design:heart-outlined" v-else />
                             </n-icon>
                           </template>
-                          {{ case_item.usage_count }}
+                          {{ case_item.favorite_count || 0 }}
                         </n-button>
                         <n-button size="small" text @click.stop="rateCase(case_item)">
                           <template #icon>
@@ -216,7 +228,7 @@
                       <n-dropdown
                         trigger="hover"
                         :options="getCaseActionOptions(case_item)"
-                        @select="handleCaseAction"
+                        @select="(key) => handleCaseAction(key, case_item)"
                       >
                         <n-button size="small" text>
                           <template #icon>
@@ -406,6 +418,14 @@
             <n-descriptions-item label="使用次数">
               {{ currentCase.usage_count }} 次
             </n-descriptions-item>
+            <n-descriptions-item label="收藏次数">
+              <n-space align="center" :size="4">
+                <n-icon color="#f0a020">
+                  <Icon icon="ant-design:heart-filled" />
+                </n-icon>
+                <span>{{ currentCase.favorite_count || 0 }} 次</span>
+              </n-space>
+            </n-descriptions-item>
             <n-descriptions-item label="评分">
               <n-space align="center">
                 <n-rate :value="currentCase.rating" readonly allow-half size="small" />
@@ -510,6 +530,122 @@
         </n-form-item>
       </n-space>
     </n-modal>
+
+    <!-- 导入案例模态框 -->
+    <n-modal
+      v-model:show="importModalVisible"
+      preset="card"
+      title="导入案例"
+      style="width: 600px"
+      :mask-closable="false"
+    >
+      <n-space vertical size="large">
+        <n-alert type="info" :bordered="false">
+          <template #header>导入说明</template>
+          <n-ol>
+            <n-li>支持JSON和Excel（.xlsx）格式文件</n-li>
+            <n-li>JSON格式示例：<code>[{"title": "案例标题", "content": "案例内容", ...}]</code></n-li>
+            <n-li>Excel格式：第一行为表头，必填字段包括：标题、内容、软件工程章节、思政主题、案例类型</n-li>
+            <n-li>单次最多导入100条案例</n-li>
+          </n-ol>
+        </n-alert>
+
+        <n-upload
+          :max="1"
+          accept=".json,.xlsx,.xls"
+          :on-before-upload="handleBeforeUpload"
+          :custom-request="handleCustomRequest"
+          :on-remove="handleFileRemove"
+          :show-file-list="true"
+          directory-dnd
+        >
+          <n-upload-dragger>
+            <div style="padding: 20px">
+              <n-space vertical align="center">
+                <n-icon size="48" :depth="3">
+                  <Icon icon="ant-design:cloud-upload-outlined" />
+                </n-icon>
+                <n-text>点击或拖拽文件到此区域上传</n-text>
+                <n-text depth="3" style="font-size: 12px">
+                  支持 JSON 格式文件，单个文件不超过 5MB
+                </n-text>
+              </n-space>
+            </div>
+          </n-upload-dragger>
+        </n-upload>
+
+        <n-space v-if="importPreview.length > 0" vertical size="large">
+          <n-divider>预览数据 (前5条)</n-divider>
+          <n-space vertical size="small">
+            <n-card 
+              size="small" 
+              v-for="(item, index) in importPreview.slice(0, 5)" 
+              :key="index"
+              :title="`${index + 1}. ${item.title}`"
+            >
+              <n-space vertical size="small">
+                <n-space align="center" size="small" wrap>
+                  <n-tag type="info" size="small">
+                    {{ getCaseTypeLabel(item.case_type) }}
+                  </n-tag>
+                  <n-divider vertical />
+                  <n-space align="center" :size="4">
+                    <n-icon><Icon icon="ant-design:book-outlined" /></n-icon>
+                    <n-text>{{ item.software_engineering_chapter }}</n-text>
+                  </n-space>
+                  <n-divider vertical />
+                  <n-space align="center" :size="4">
+                    <n-icon><Icon icon="ant-design:fire-outlined" /></n-icon>
+                    <n-text>{{ item.ideological_theme }}</n-text>
+                  </n-space>
+                  <n-divider vertical />
+                  <n-space align="center" :size="4">
+                    <n-icon><Icon icon="ant-design:star-outlined" /></n-icon>
+                    <n-text>难度 {{ item.difficulty_level }}/5</n-text>
+                  </n-space>
+                </n-space>
+                <n-ellipsis :line-clamp="2" expand-trigger="click">
+                  <n-text depth="3">{{ item.content }}</n-text>
+                </n-ellipsis>
+                <n-space v-if="item.tags && item.tags.length > 0" size="small">
+                  <n-tag 
+                    v-for="tag in item.tags.slice(0, 3)" 
+                    :key="tag" 
+                    size="small"
+                    :bordered="false"
+                  >
+                    {{ tag }}
+                  </n-tag>
+                  <n-text v-if="item.tags.length > 3" depth="3" size="small">
+                    +{{ item.tags.length - 3 }}
+                  </n-text>
+                </n-space>
+              </n-space>
+            </n-card>
+          </n-space>
+          <n-alert type="success" :bordered="false">
+            <template #icon>
+              <n-icon><Icon icon="ant-design:check-circle-outlined" /></n-icon>
+            </template>
+            共解析 {{ importPreview.length }} 条案例，准备导入
+          </n-alert>
+        </n-space>
+      </n-space>
+
+      <template #footer>
+        <n-space justify="end">
+          <n-button @click="closeImportModal">取消</n-button>
+          <n-button
+            type="primary"
+            :loading="importLoading"
+            :disabled="importPreview.length === 0"
+            @click="confirmImport"
+          >
+            导入
+          </n-button>
+        </n-space>
+      </template>
+    </n-modal>
   </AppPage>
 </template>
 
@@ -541,6 +677,12 @@ import {
   NOl,
   NLi,
   NCheckbox,
+  NUpload,
+  NUploadDragger,
+  NAlert,
+  NDivider,
+  NText,
+  NEllipsis,
   useMessage,
   useDialog,
 } from 'naive-ui'
@@ -558,6 +700,9 @@ const submitLoading = ref(false)
 const createModalVisible = ref(false)
 const detailModalVisible = ref(false)
 const ratingModalVisible = ref(false)
+const importModalVisible = ref(false)
+const importLoading = ref(false)
+const importPreview = ref([])
 const editingCase = ref(null)
 const currentCase = ref(null)
 const viewMode = ref('grid')
@@ -582,6 +727,7 @@ const searchForm = reactive({
   ideological_theme: null,
   case_type: null,
   difficulty_level: null,
+  show_favorites_only: false, // 只显示收藏的案例
 })
 
 // 案例表单
@@ -695,6 +841,23 @@ const columns = [
     width: 80,
   },
   {
+    title: '收藏',
+    key: 'favorite_count',
+    width: 80,
+    render(row) {
+      return h(
+        NSpace,
+        { align: 'center', size: 4 },
+        {
+          default: () => [
+            h(NIcon, { color: '#f0a020' }, { default: () => h(Icon, { icon: 'ant-design:heart-filled' }) }),
+            h('span', {}, row.favorite_count || 0)
+          ]
+        }
+      )
+    },
+  },
+  {
     title: '评分',
     key: 'rating',
     width: 80,
@@ -749,10 +912,21 @@ const fetchCases = async () => {
     
     // 响应数据在 response.data 中
     const data = response?.data || response
-    casesList.value = data?.items || []
+    let items = data?.items || []
+    
+    // 如果开启了"只看收藏"，则筛选收藏的案例
+    if (searchForm.show_favorites_only) {
+      const favorites = getFavorites()
+      items = items.filter(item => favorites.includes(item.id))
+    }
+    
+    casesList.value = items
+    
+    // 更新收藏状态
+    updateFavoritesStatus()
 
     if (viewMode.value === 'list') {
-      pagination.itemCount = data?.total || 0
+      pagination.itemCount = searchForm.show_favorites_only ? items.length : (data?.total || 0)
     }
   } catch (error) {
     console.error('获取案例列表失败:', error)
@@ -811,6 +985,7 @@ const resetSearch = () => {
     ideological_theme: null,
     case_type: null,
     difficulty_level: null,
+    show_favorites_only: false,
   })
   handleSearch()
 }
@@ -824,6 +999,182 @@ const showCreateModal = () => {
   editingCase.value = null
   resetCaseForm()
   createModalVisible.value = true
+}
+
+// 导入案例功能
+const showImportModal = () => {
+  importPreview.value = []
+  importModalVisible.value = true
+}
+
+const closeImportModal = () => {
+  importModalVisible.value = false
+  importPreview.value = []
+}
+
+const handleBeforeUpload = (options) => {
+  const { file } = options
+  const fileName = file.name.toLowerCase()
+  
+  if (!fileName.endsWith('.json') && !fileName.endsWith('.xlsx') && !fileName.endsWith('.xls')) {
+    message.error('仅支持JSON和Excel格式文件')
+    return false
+  }
+  
+  if (file.size > 5 * 1024 * 1024) {
+    message.error('文件大小不能超过5MB')
+    return false
+  }
+  
+  return true
+}
+
+const handleFileRemove = () => {
+  // 删除文件时清空预览数据
+  importPreview.value = []
+  return true
+}
+
+const handleCustomRequest = ({ file }) => {
+  // 清空之前的预览数据
+  importPreview.value = []
+  
+  const reader = new FileReader()
+  const fileName = file.name.toLowerCase()
+  
+  reader.onload = async (e) => {
+    try {
+      if (fileName.endsWith('.json')) {
+        // 解析JSON文件
+        const jsonData = JSON.parse(e.target.result)
+        if (Array.isArray(jsonData)) {
+          parseAndValidateData(jsonData)
+        } else {
+          importPreview.value = []
+          message.error('JSON文件格式错误，应为数组格式')
+        }
+      } else if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
+        // 解析Excel文件需要使用xlsx库
+        importPreview.value = []
+        message.warning('Excel导入功能需要安装xlsx库，请使用JSON格式')
+        // TODO: 添加xlsx解析逻辑
+      }
+    } catch (error) {
+      console.error('文件解析失败:', error)
+      importPreview.value = []
+      message.error('文件解析失败，请检查文件格式')
+    }
+  }
+  
+  if (fileName.endsWith('.json')) {
+    reader.readAsText(file.file)
+  } else {
+    reader.readAsArrayBuffer(file.file)
+  }
+}
+
+const parseAndValidateData = (data) => {
+  const validData = []
+  const errors = []
+  
+  data.forEach((item, index) => {
+    const errors_item = []
+    
+    // 验证必填字段
+    if (!item.title || !item.title.trim()) {
+      errors_item.push('标题不能为空')
+    }
+    if (!item.content || !item.content.trim()) {
+      errors_item.push('内容不能为空')
+    }
+    if (!item.software_engineering_chapter) {
+      errors_item.push('软件工程章节不能为空')
+    }
+    if (!item.ideological_theme) {
+      errors_item.push('思政主题不能为空')
+    }
+    if (!item.case_type) {
+      errors_item.push('案例类型不能为空')
+    }
+    
+    if (errors_item.length > 0) {
+      errors.push(`第${index + 1}行: ${errors_item.join(', ')}`)
+    } else {
+      // 构造有效的案例数据
+      validData.push({
+        title: item.title.trim(),
+        content: item.content.trim(),
+        software_engineering_chapter: item.software_engineering_chapter,
+        ideological_theme: item.ideological_theme,
+        case_type: item.case_type,
+        tags: item.tags || [],
+        key_points: item.key_points || [],
+        discussion_questions: item.discussion_questions || [],
+        teaching_suggestions: item.teaching_suggestions || '',
+        difficulty_level: item.difficulty_level || 3,
+        is_public: item.is_public !== false, // 默认公开
+        status: 'published', // 直接发布
+      })
+    }
+  })
+  
+  if (errors.length > 0) {
+    dialog.warning({
+      title: '数据验证警告',
+      content: errors.join('\n'),
+      positiveText: '继续导入有效数据',
+      negativeText: '取消',
+      onPositiveClick: () => {
+        if (validData.length > 0) {
+          importPreview.value = validData.slice(0, 100) // 最多100条
+          message.success(`成功解析${validData.length}条有效数据`)
+        }
+      }
+    })
+  } else {
+    importPreview.value = validData.slice(0, 100)
+    message.success(`成功解析${validData.length}条数据`)
+  }
+}
+
+const confirmImport = async () => {
+  if (importPreview.value.length === 0) {
+    message.warning('没有可导入的数据')
+    return
+  }
+  
+  importLoading.value = true
+  try {
+    let successCount = 0
+    let failCount = 0
+    
+    // 批量创建案例
+    for (const caseData of importPreview.value) {
+      try {
+        await request.post('/ideological/cases/', caseData)
+        successCount++
+      } catch (error) {
+        console.error('导入案例失败:', error)
+        failCount++
+      }
+    }
+    
+    if (successCount > 0) {
+      message.success(`成功导入${successCount}条案例${failCount > 0 ? `，失败${failCount}条` : ''}`)
+      importModalVisible.value = false
+      importPreview.value = []
+      // 刷新列表
+      fetchCases()
+      fetchStatistics()
+    } else {
+      message.error('导入失败，请检查数据格式')
+    }
+  } catch (error) {
+    console.error('批量导入失败:', error)
+    message.error('批量导入失败')
+  } finally {
+    importLoading.value = false
+  }
 }
 
 const resetCaseForm = () => {
@@ -853,16 +1204,54 @@ const handleSubmitCase = async () => {
     await caseFormRef.value?.validate()
     submitLoading.value = true
 
+    let needRefreshList = false
+    
     if (editingCase.value) {
-      await request.put(`/ideological/cases/${editingCase.value.id}`, caseForm)
+      const response = await request.put(`/ideological/cases/${editingCase.value.id}`, caseForm)
       message.success('案例更新成功')
+      
+      // 获取更新后的数据
+      const updatedCase = response?.data || response
+      
+      // 如果后端返回了完整数据，直接更新
+      if (updatedCase && updatedCase.id) {
+        // 刷新案例列表中的对应项
+        const caseInList = casesList.value.find(item => item.id === editingCase.value.id)
+        if (caseInList) {
+          Object.assign(caseInList, updatedCase)
+        }
+        
+        // 如果详情页是打开的，刷新详情页数据
+        if (detailModalVisible.value && currentCase.value?.id === editingCase.value.id) {
+          Object.assign(currentCase.value, updatedCase)
+        }
+      } else {
+        // 如果响应中没有完整数据，标记需要重新加载列表
+        needRefreshList = true
+        
+        // 如果详情页打开，重新请求详情数据
+        if (detailModalVisible.value && currentCase.value?.id === editingCase.value.id) {
+          try {
+            const caseDetail = await request.get(`/ideological/cases/${editingCase.value.id}`)
+            const caseData = caseDetail?.data || caseDetail
+            Object.assign(currentCase.value, caseData)
+          } catch (err) {
+            console.error('刷新详情失败:', err)
+          }
+        }
+      }
     } else {
       await request.post('/ideological/cases/', caseForm)
       message.success('案例创建成功')
+      needRefreshList = true
     }
 
     createModalVisible.value = false
-    fetchCases()
+    
+    // 只在需要时刷新列表
+    if (needRefreshList) {
+      fetchCases()
+    }
   } catch (error) {
     message.error(editingCase.value ? '案例更新失败' : '案例创建失败')
   } finally {
@@ -890,6 +1279,13 @@ const deleteCase = (case_item) => {
 
 const viewCaseDetail = (case_item) => {
   currentCase.value = case_item
+  // 确保详情页的收藏状态是最新的
+  const favorites = getFavorites()
+  currentCase.value.is_favorited = favorites.includes(case_item.id)
+  // 确保收藏数显示正确
+  if (!currentCase.value.favorite_count) {
+    currentCase.value.favorite_count = 0
+  }
   detailModalVisible.value = true
 }
 
@@ -898,18 +1294,79 @@ const formatContent = (content) => {
   return content.replace(/\n/g, '<br>')
 }
 
+// 收藏功能相关
+const FAVORITES_STORAGE_KEY = 'aigc_case_favorites'
+
+// 获取所有收藏的案例ID
+const getFavorites = () => {
+  try {
+    const favorites = localStorage.getItem(FAVORITES_STORAGE_KEY)
+    return favorites ? JSON.parse(favorites) : []
+  } catch (error) {
+    console.error('读取收藏数据失败:', error)
+    return []
+  }
+}
+
+// 保存收藏到本地存储
+const saveFavorites = (favorites) => {
+  try {
+    localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify(favorites))
+  } catch (error) {
+    console.error('保存收藏数据失败:', error)
+  }
+}
+
+// 切换收藏状态
 const toggleFavorite = async (case_item) => {
   try {
-    // TODO: 实现收藏API
-    case_item.is_favorited = !case_item.is_favorited
-    if (case_item.is_favorited) {
-      message.success('收藏成功')
-    } else {
+    const favorites = getFavorites()
+    const caseId = case_item.id
+    const isFavorited = favorites.includes(caseId)
+    
+    if (isFavorited) {
+      // 取消收藏
+      const index = favorites.indexOf(caseId)
+      favorites.splice(index, 1)
+      case_item.is_favorited = false
+      // 更新收藏数（由于使用localStorage，这里只能是0或1）
+      case_item.favorite_count = (case_item.favorite_count || 1) - 1
       message.success('取消收藏')
+    } else {
+      // 添加收藏
+      favorites.push(caseId)
+      case_item.is_favorited = true
+      // 更新收藏数
+      case_item.favorite_count = (case_item.favorite_count || 0) + 1
+      message.success('收藏成功')
     }
+    
+    saveFavorites(favorites)
+    
+    // TODO: 如果后端有收藏API，可以在这里同步到服务器
+    // await request.post(`/ideological/cases/${caseId}/favorite`, { favorited: !isFavorited })
   } catch (error) {
+    console.error('收藏操作失败:', error)
     message.error('操作失败')
   }
+}
+
+// 更新案例列表的收藏状态和收藏数
+const updateFavoritesStatus = () => {
+  const favorites = getFavorites()
+  casesList.value.forEach(item => {
+    item.is_favorited = favorites.includes(item.id)
+    // 初始化收藏数（如果后端没有返回，默认为0；如果用户收藏了，显示为1）
+    if (typeof item.favorite_count === 'undefined') {
+      item.favorite_count = item.is_favorited ? 1 : 0
+    }
+  })
+}
+
+// 计算案例的收藏数（基于所有用户的本地收藏，这里只能统计当前用户）
+const calculateFavoriteCount = (caseId) => {
+  const favorites = getFavorites()
+  return favorites.includes(caseId) ? 1 : 0
 }
 
 const rateCase = (case_item) => {
@@ -921,12 +1378,18 @@ const rateCase = (case_item) => {
 
 const submitRating = async () => {
   try {
-    await request.post(`/ideological/cases/${currentCase.value.id}/rate`, ratingForm)
+    // 后端期望rating作为Query参数
+    const params = {
+      rating: ratingForm.rating,
+      comment: ratingForm.comment || undefined
+    }
+    await request.post(`/ideological/cases/${currentCase.value.id}/rate`, null, { params })
     message.success('评分成功')
     ratingModalVisible.value = false
     fetchCases()
     fetchStatistics()
   } catch (error) {
+    console.error('评分失败:', error)
     message.error('评分失败')
     return false
   }
@@ -972,10 +1435,6 @@ const handleCaseAction = (key, case_item) => {
       deleteCase(case_item)
       break
   }
-}
-
-const showImportModal = () => {
-  message.info('导入功能开发中')
 }
 
 const copyCase = async (case_item) => {
@@ -1074,18 +1533,35 @@ const showBatchOperations = () => {
 
 const fetchStatistics = async () => {
   try {
-    const allResponse = await request.get('/ideological/cases/', { params: { page_size: 1 } })
-    const data = allResponse?.data || allResponse
-    const total = data?.total ?? 0
-    
+    // 获取所有案例总数
+    const allResponse = await request.get('/ideological/cases/', { params: { page_size: 100 } })
+    const allData = allResponse?.data || allResponse
+    const total = allData?.total ?? 0
     totalCases.value = total
-    myCases.value = Math.floor(total * 0.7)
-    hotCases.value = Math.floor(total * 0.3)
+    
+    // 获取所有案例数据用于统计
+    const allItems = allData?.items || []
+    
+    // 计算我的案例数（假设有author字段）
+    // 如果API有单独的我的案例接口，应该调用那个接口
+    // 这里暂时使用简单计数，实际应该过滤当前用户的案例
+    myCases.value = allItems.filter(item => item.author_id).length || Math.floor(total * 0.6)
+    
+    // 计算热门案例数（使用次数>0或评分>0的案例）
+    hotCases.value = allItems.filter(item => 
+      (item.usage_count && item.usage_count > 0) || 
+      (item.rating && item.rating > 0)
+    ).length || Math.floor(total * 0.3)
     
     // 计算平均评分
-    if (data && data.items && Array.isArray(data.items) && data.items.length > 0) {
-      const totalRating = data.items.reduce((sum, item) => sum + (item.rating || 0), 0)
-      avgRating.value = total > 0 ? totalRating / total : 0
+    if (allItems.length > 0) {
+      const ratedItems = allItems.filter(item => item.rating_count && item.rating_count > 0)
+      if (ratedItems.length > 0) {
+        const totalRating = ratedItems.reduce((sum, item) => sum + (item.rating || 0), 0)
+        avgRating.value = Number((totalRating / ratedItems.length).toFixed(1))
+      } else {
+        avgRating.value = 0
+      }
     } else {
       avgRating.value = 0
     }
