@@ -37,16 +37,6 @@ export default {
       },
     },
     {
-      name: '知识点管理旧',
-      path: 'knowledge-points/:courseId',
-      component: () => import('./knowledge-points.vue'),
-      meta: {
-        title: '知识点管理',
-        icon: 'material-symbols:lightbulb-outline',
-        hidden: true,
-      },
-    },
-    {
       name: '案例分类旧',
       path: 'categories',
       component: () => import('./categories.vue'),

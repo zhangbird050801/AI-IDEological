@@ -183,6 +183,15 @@ export function deleteKnowledgePoint(id) {
   return request.delete(`/knowledge-points/${id}`)
 }
 
+/**
+ * Reorder knowledge points
+ * @param {Array<{id: number, order: number}>} knowledgePoints - Array of knowledge point IDs and new order numbers
+ * @returns {Promise<Object>}
+ */
+export function reorderKnowledgePoints(knowledgePoints) {
+  return request.post('/knowledge-points/reorder', { knowledge_points: knowledgePoints })
+}
+
 // ==================== Case Category APIs ====================
 
 /**
@@ -266,6 +275,7 @@ export default {
   createKnowledgePoint,
   updateKnowledgePoint,
   deleteKnowledgePoint,
+  reorderKnowledgePoints,
   // Category
   getCategoryTree,
   getCategory,

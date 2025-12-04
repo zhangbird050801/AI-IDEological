@@ -21,7 +21,7 @@ export default {
     },
     {
       name: '章节管理',
-      path: 'chapters',
+      path: 'index',
       component: () => import('@/views/courses/index.vue'),
       meta: {
         title: '章节管理',
@@ -80,7 +80,7 @@ export default {
         order: 7,
       },
     },
-    // 隐藏的子路由 - 用于章节详情和知识点管理
+    // 隐藏的子路由 - 用于章节详情
     {
       name: '章节详情',
       path: 'chapters/:courseId',
@@ -88,16 +88,6 @@ export default {
       meta: {
         title: '章节详情',
         icon: 'material-symbols:menu-book',
-        hidden: true, // 隐藏在菜单中
-      },
-    },
-    {
-      name: '知识点管理',
-      path: 'knowledge-points/:courseId',
-      component: () => import('@/views/courses/knowledge-points.vue'),
-      meta: {
-        title: '知识点管理',
-        icon: 'material-symbols:lightbulb-outline',
         hidden: true, // 隐藏在菜单中
       },
     },

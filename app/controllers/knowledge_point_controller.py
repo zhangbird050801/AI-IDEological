@@ -51,3 +51,13 @@ class KnowledgePointController:
         if not knowledge_point:
             raise HTTPException(status_code=404, detail="知识点不存在")
         await knowledge_point.delete()
+
+    @staticmethod
+    async def reorder_knowledge_points(knowledge_points_data: List[dict]) -> dict:
+        """批量更新知识点顺序"""
+        for kp_data in knowledge_points_data:
+            knowledge_point = await KnowledgePoint.filter(id=kp_data["id"]).first()
+            if knowledge_point:
+                knowledge_point.order = kp_data["order"]
+                await knowledge_point.save()
+        return {"message": "知识点顺序更新成功"}
