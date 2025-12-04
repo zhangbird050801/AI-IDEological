@@ -11,7 +11,6 @@ from app.schemas.ideological import (
     BatchOperationResponse,
 )
 from app.models.ideological import IdeologicalCase as IdeologicalCaseModel
-from app.models.case_category import CaseCategoryRelation
 from app.models.admin import User
 from app.core.dependency import AuthControl
 from app.core.crud import CRUDBase
@@ -24,12 +23,8 @@ class CaseService(CRUDBase[IdeologicalCaseModel, IdeologicalCaseCreate, Ideologi
 
     async def create_case(self, obj_in: IdeologicalCaseCreate, user_id: int) -> IdeologicalCaseModel:
         obj_data = obj_in.dict()
-        category_ids = obj_data.pop("category_ids", [])
         obj_data["author_id"] = user_id
         case = await self.create(obj_data)
-        if category_ids:
-            await self._set_case_categories(case.id, category_ids)
-        case.category_ids = category_ids
         return case
 
     async def get_cases_with_search(self, search_request: CaseSearchRequest, user_id: int = None):
@@ -62,12 +57,6 @@ class CaseService(CRUDBase[IdeologicalCaseModel, IdeologicalCaseCreate, Ideologi
         if search_request.case_type:
             query = query.filter(case_type=search_request.case_type)
 
-        if search_request.category_ids:
-            case_ids = await CaseCategoryRelation.filter(
-                category_id__in=search_request.category_ids
-            ).values_list("case_id", flat=True)
-            query = query.filter(id__in=list(set(case_ids)))
-
         if search_request.tags:
             for tag in search_request.tags:
                 query = query.filter(tags__contains=tag)
@@ -82,7 +71,6 @@ class CaseService(CRUDBase[IdeologicalCaseModel, IdeologicalCaseCreate, Ideologi
         offset = (search_request.page - 1) * search_request.page_size
         total = await query.count()
         items = await query.offset(offset).limit(search_request.page_size).prefetch_related('author')
-        await self._attach_category_ids(items)
 
         return {
             "items": items,
@@ -125,24 +113,6 @@ class CaseService(CRUDBase[IdeologicalCaseModel, IdeologicalCaseCreate, Ideologi
             status="published"
         ).order_by("-rating", "-usage_count").limit(limit)
 
-    async def _set_case_categories(self, case_id: int, category_ids: list[int]):
-        await CaseCategoryRelation.filter(case_id=case_id).delete()
-        if category_ids:
-            await CaseCategoryRelation.bulk_create([
-                CaseCategoryRelation(case_id=case_id, category_id=cid) for cid in category_ids
-            ])
-
-    async def _attach_category_ids(self, cases: list[IdeologicalCaseModel]):
-        if not cases:
-            return
-        ids = [c.id for c in cases]
-        relations = await CaseCategoryRelation.filter(case_id__in=ids).values("case_id", "category_id")
-        mapping = {}
-        for rel in relations:
-            mapping.setdefault(rel["case_id"], []).append(rel["category_id"])
-        for c in cases:
-            c.category_ids = mapping.get(c.id, [])
-
 case_service = CaseService()
 
 @router.get("/", summary="获取案例列表")
@@ -151,7 +121,6 @@ async def get_cases(
     software_engineering_chapter: str = Query(None, description="软件工程章节"),
     ideological_theme: str = Query(None, description="思政主题"),
     case_type: str = Query(None, description="案例类型"),
-    category_ids: list[int] = Query(None, description="分类ID列表"),
     difficulty_level: int = Query(None, ge=1, le=5, description="难度等级"),
     page: int = Query(1, ge=1, description="页码"),
     page_size: int = Query(10, ge=1, le=100, description="每页数量"),
@@ -162,7 +131,6 @@ async def get_cases(
         software_engineering_chapter=software_engineering_chapter,
         ideological_theme=ideological_theme,
         case_type=case_type,
-        category_ids=category_ids,
         difficulty_level=difficulty_level,
         page=page,
         page_size=page_size
@@ -205,7 +173,6 @@ async def get_case(
     # 增加使用次数
     await case.update_from_dict({"usage_count": case.usage_count + 1})
     await case.save()
-    await case_service._attach_category_ids([case])
 
     return IdeologicalCase.from_orm(case)
 
@@ -224,14 +191,8 @@ async def update_case(
         raise HTTPException(status_code=403, detail="无权修改该案例")
 
     update_data = case_in.dict(exclude_unset=True)
-    category_ids = update_data.pop("category_ids", None)
     await case.update_from_dict(update_data)
     await case.save()
-    if category_ids is not None:
-        await case_service._set_case_categories(case.id, category_ids)
-        case.category_ids = category_ids
-    else:
-        await case_service._attach_category_ids([case])
 
     return IdeologicalCase.from_orm(case)
 
@@ -318,7 +279,6 @@ async def get_hot_cases(
     current_user: User = Depends(AuthControl.is_authed)
 ):
     cases = await case_service.get_hot_cases(limit)
-    await case_service._attach_category_ids(cases)
     return [IdeologicalCase.from_orm(case) for case in cases]
 
 @router.get("/recommended/list", summary="获取推荐案例")
@@ -327,7 +287,6 @@ async def get_recommended_cases(
     current_user: User = Depends(AuthControl.is_authed)
 ):
     cases = await case_service.get_recommended_cases(current_user.id, limit)
-    await case_service._attach_category_ids(cases)
     return [IdeologicalCase.from_orm(case) for case in cases]
 
 @router.post("/{case_id}/rate", summary="评分案例")

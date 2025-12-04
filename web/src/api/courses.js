@@ -2,7 +2,7 @@ import { request } from '@/utils'
 
 /**
  * Course Management API Client
- * Provides methods for course, chapter, knowledge point, and category operations
+ * Provides methods for course, chapter, and knowledge point operations
  */
 
 // ==================== Course APIs ====================
@@ -192,67 +192,7 @@ export function reorderKnowledgePoints(knowledgePoints) {
   return request.post('/knowledge-points/reorder', { knowledge_points: knowledgePoints })
 }
 
-// ==================== Case Category APIs ====================
-
-/**
- * Get all categories in tree structure
- * @returns {Promise<Array>}
- */
-export function getCategoryTree() {
-  return request.get('/case-categories/tree')
-}
-
-/**
- * Get category by ID
- * @param {number} id - Category ID
- * @returns {Promise<Object>}
- */
-export function getCategory(id) {
-  return request.get(`/case-categories/${id}`)
-}
-
-/**
- * Create new category
- * @param {Object} data - Category data
- * @param {string} data.name - Category name (required)
- * @param {string} data.description - Description
- * @param {number} data.parent_id - Parent category ID
- * @returns {Promise<Object>}
- */
-export function createCategory(data) {
-  return request.post('/case-categories/', data)
-}
-
-/**
- * Update category
- * @param {number} id - Category ID
- * @param {Object} data - Category data to update
- * @returns {Promise<Object>}
- */
-export function updateCategory(id, data) {
-  return request.put(`/case-categories/${id}`, data)
-}
-
-/**
- * Delete category
- * @param {number} id - Category ID
- * @returns {Promise<Object>}
- */
-export function deleteCategory(id) {
-  return request.delete(`/case-categories/${id}`)
-}
-
-/**
- * Move category to new parent (drag and drop)
- * @param {number} id - Category ID to move
- * @param {Object} data - Move data
- * @param {number} data.parent_id - New parent ID
- * @param {number} data.order_num - New order number
- * @returns {Promise<Object>}
- */
-export function moveCategory(id, data) {
-  return request.post(`/case-categories/${id}/move`, data)
-}
+// ==================== Export All ====================
 
 export default {
   // Course
@@ -276,11 +216,4 @@ export default {
   updateKnowledgePoint,
   deleteKnowledgePoint,
   reorderKnowledgePoints,
-  // Category
-  getCategoryTree,
-  getCategory,
-  createCategory,
-  updateCategory,
-  deleteCategory,
-  moveCategory,
 }

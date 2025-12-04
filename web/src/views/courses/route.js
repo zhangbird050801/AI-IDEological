@@ -1,13 +1,13 @@
 const Layout = () => import('@/layout/index.vue')
 
 // 课程管理菜单已移除，相关功能已整合到"课程思政"菜单中
-// 如需访问课程管理功能，请前往"课程思政"菜单下的"章节管理"和"案例分类"
+// 如需访问课程管理功能，请前往"课程思政"菜单下的"章节管理"
 
 export default {
   name: '课程管理',
   path: '/courses',
   component: Layout,
-  redirect: '/aigc/chapters', // 重定向到新位置
+  redirect: '/aigc/index', // 重定向到章节管理
   meta: {
     title: '课程管理',
     icon: 'material-symbols:school-outline',
@@ -23,26 +23,6 @@ export default {
       meta: {
         title: '章节管理',
         icon: 'material-symbols:list',
-        hidden: true,
-      },
-    },
-    {
-      name: '章节管理旧',
-      path: 'chapters/:courseId',
-      component: () => import('./chapters.vue'),
-      meta: {
-        title: '章节管理',
-        icon: 'material-symbols:menu-book',
-        hidden: true,
-      },
-    },
-    {
-      name: '案例分类旧',
-      path: 'categories',
-      component: () => import('./categories.vue'),
-      meta: {
-        title: '案例分类',
-        icon: 'material-symbols:category-outline',
         hidden: true,
       },
     },

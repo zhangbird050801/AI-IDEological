@@ -24,13 +24,6 @@ function normalizeMenuItem(item) {
     normalized.name = '章节管理'
   }
 
-  // 案例分类菜单已移到课程思政下
-  const isCaseCategory =
-    normalized.name === '案例分类' || normalized.path === 'categories' || normalized.path?.includes('categories')
-  if (isCaseCategory) {
-    normalized.component = '/courses/categories' // 保持组件路径不变
-  }
-
   if (Array.isArray(normalized.children)) {
     normalized.children = normalized.children.map((child) => normalizeMenuItem(child))
   }

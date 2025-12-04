@@ -10,23 +10,13 @@ export default {
   },
   children: [
     {
-      name: '案例分类',
-      path: 'categories',
-      component: () => import('@/views/courses/categories.vue'),
-      meta: {
-        title: '案例分类',
-        icon: 'material-symbols:category-outline',
-        order: 1,
-      },
-    },
-    {
       name: '章节管理',
       path: 'index',
       component: () => import('@/views/courses/index.vue'),
       meta: {
         title: '章节管理',
         icon: 'material-symbols:menu-book',
-        order: 2,
+        order: 1,
       },
     },
     {
@@ -78,17 +68,6 @@ export default {
         title: '教学资源',
         icon: 'mdi:folder-outline',
         order: 7,
-      },
-    },
-    // 隐藏的子路由 - 用于章节详情
-    {
-      name: '章节详情',
-      path: 'chapters/:courseId',
-      component: () => import('@/views/courses/chapters.vue'),
-      meta: {
-        title: '章节详情',
-        icon: 'material-symbols:menu-book',
-        hidden: true, // 隐藏在菜单中
       },
     },
   ],

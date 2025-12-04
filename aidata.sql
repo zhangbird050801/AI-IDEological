@@ -18,6 +18,12 @@ SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;
 
 -- ----------------------------
+-- 删除案例分类相关表（如果存在）
+-- ----------------------------
+DROP TABLE IF EXISTS `case_category_rel`;
+DROP TABLE IF EXISTS `case_categories`;
+
+-- ----------------------------
 -- Table structure for aerich
 -- ----------------------------
 DROP TABLE IF EXISTS `aerich`;
@@ -122,100 +128,6 @@ INSERT INTO `api` (`id`, `created_at`, `updated_at`, `path`, `method`, `summary`
 INSERT INTO `api` (`id`, `created_at`, `updated_at`, `path`, `method`, `summary`, `tags`) VALUES (53, '2025-12-04 14:42:35.348237', '2025-12-04 14:42:35.348241', '/knowledge-points/', 'POST', '创建知识点', '课程管理');
 INSERT INTO `api` (`id`, `created_at`, `updated_at`, `path`, `method`, `summary`, `tags`) VALUES (54, '2025-12-04 14:42:35.348961', '2025-12-04 14:42:35.348965', '/knowledge-points/{id}', 'PUT', '更新知识点', '课程管理');
 INSERT INTO `api` (`id`, `created_at`, `updated_at`, `path`, `method`, `summary`, `tags`) VALUES (55, '2025-12-04 14:42:35.349735', '2025-12-04 14:42:35.349739', '/knowledge-points/{id}', 'DELETE', '删除知识点', '课程管理');
-INSERT INTO `api` (`id`, `created_at`, `updated_at`, `path`, `method`, `summary`, `tags`) VALUES (56, '2025-12-04 14:42:35.350399', '2025-12-04 14:42:35.350402', '/case-categories/tree', 'GET', '获取分类树', '课程管理');
-INSERT INTO `api` (`id`, `created_at`, `updated_at`, `path`, `method`, `summary`, `tags`) VALUES (57, '2025-12-04 14:42:35.351104', '2025-12-04 14:42:35.351108', '/case-categories/', 'GET', '获取分类列表', '课程管理');
-INSERT INTO `api` (`id`, `created_at`, `updated_at`, `path`, `method`, `summary`, `tags`) VALUES (58, '2025-12-04 14:42:35.351901', '2025-12-04 14:42:35.351904', '/case-categories/{id}', 'GET', '获取分类详情', '课程管理');
-INSERT INTO `api` (`id`, `created_at`, `updated_at`, `path`, `method`, `summary`, `tags`) VALUES (59, '2025-12-04 14:42:35.352714', '2025-12-04 14:42:35.352719', '/case-categories/', 'POST', '创建分类', '课程管理');
-INSERT INTO `api` (`id`, `created_at`, `updated_at`, `path`, `method`, `summary`, `tags`) VALUES (60, '2025-12-04 14:42:35.353862', '2025-12-04 14:42:35.353868', '/case-categories/{id}', 'PUT', '更新分类', '课程管理');
-INSERT INTO `api` (`id`, `created_at`, `updated_at`, `path`, `method`, `summary`, `tags`) VALUES (61, '2025-12-04 14:42:35.355094', '2025-12-04 14:42:35.355098', '/case-categories/{id}', 'DELETE', '删除分类', '课程管理');
-INSERT INTO `api` (`id`, `created_at`, `updated_at`, `path`, `method`, `summary`, `tags`) VALUES (62, '2025-12-04 14:42:35.356307', '2025-12-04 14:42:35.356310', '/case-categories/{id}/move', 'POST', '移动分类', '课程管理');
-COMMIT;
-
--- ----------------------------
--- Table structure for case_categories
--- ----------------------------
-DROP TABLE IF EXISTS `case_categories`;
-CREATE TABLE `case_categories` (
-  `id` bigint NOT NULL AUTO_INCREMENT,
-  `parent_id` bigint NOT NULL DEFAULT '0' COMMENT '父分类ID，0表示顶级分类',
-  `name` varchar(100) NOT NULL COMMENT '分类名称',
-  `description` text COMMENT '分类描述',
-  `icon` varchar(100) DEFAULT NULL COMMENT '图标',
-  `color` varchar(20) DEFAULT NULL COMMENT '颜色',
-  `order` int NOT NULL DEFAULT '0' COMMENT '排序',
-  `is_active` tinyint(1) NOT NULL DEFAULT '1' COMMENT '是否启用',
-  `created_at` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) COMMENT '创建时间',
-  `updated_at` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6) COMMENT '更新时间',
-  PRIMARY KEY (`id`),
-  KEY `idx_parent` (`parent_id`),
-  KEY `idx_name` (`name`),
-  KEY `idx_order` (`order`)
-) ENGINE=InnoDB AUTO_INCREMENT=19 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='案例分类表';
-
--- ----------------------------
--- Records of case_categories
--- ----------------------------
-BEGIN;
-INSERT INTO `case_categories` (`id`, `parent_id`, `name`, `description`, `icon`, `color`, `order`, `is_active`, `created_at`, `updated_at`) VALUES (1, 0, '思政案例', '课程思政教学案例', 'mdi:book-education', '#18a058', 1, 1, '2025-12-04 13:54:30.269745', '2025-12-04 13:54:30.269745');
-INSERT INTO `case_categories` (`id`, `parent_id`, `name`, `description`, `icon`, `color`, `order`, `is_active`, `created_at`, `updated_at`) VALUES (2, 0, '技术案例', '技术实践案例', 'mdi:code-tags', '#2080f0', 2, 1, '2025-12-04 13:54:30.269745', '2025-12-04 13:54:30.269745');
-INSERT INTO `case_categories` (`id`, `parent_id`, `name`, `description`, `icon`, `color`, `order`, `is_active`, `created_at`, `updated_at`) VALUES (3, 0, '项目案例', '实际项目案例', 'mdi:folder-multiple', '#f0a020', 3, 1, '2025-12-04 13:54:30.269745', '2025-12-04 13:54:30.269745');
-INSERT INTO `case_categories` (`id`, `parent_id`, `name`, `description`, `icon`, `color`, `order`, `is_active`, `created_at`, `updated_at`) VALUES (4, 1, '职业道德', '职业道德相关案例', 'mdi:account-tie', '#18a058', 1, 1, '2025-12-04 13:54:30.269745', '2025-12-04 13:54:30.269745');
-INSERT INTO `case_categories` (`id`, `parent_id`, `name`, `description`, `icon`, `color`, `order`, `is_active`, `created_at`, `updated_at`) VALUES (5, 1, '团队协作', '团队协作相关案例', 'mdi:account-group', '#18a058', 2, 1, '2025-12-04 13:54:30.269745', '2025-12-04 13:54:30.269745');
-INSERT INTO `case_categories` (`id`, `parent_id`, `name`, `description`, `icon`, `color`, `order`, `is_active`, `created_at`, `updated_at`) VALUES (6, 1, '质量意识', '质量意识相关案例', 'mdi:shield-check', '#18a058', 3, 1, '2025-12-04 13:54:30.269745', '2025-12-04 13:54:30.269745');
-INSERT INTO `case_categories` (`id`, `parent_id`, `name`, `description`, `icon`, `color`, `order`, `is_active`, `created_at`, `updated_at`) VALUES (7, 1, '创新精神', '创新精神相关案例', 'mdi:lightbulb', '#18a058', 4, 1, '2025-12-04 13:54:30.269745', '2025-12-04 13:54:30.269745');
-INSERT INTO `case_categories` (`id`, `parent_id`, `name`, `description`, `icon`, `color`, `order`, `is_active`, `created_at`, `updated_at`) VALUES (8, 1, '社会责任', '社会责任相关案例', 'mdi:earth', '#18a058', 5, 1, '2025-12-04 13:54:30.269745', '2025-12-04 13:54:30.269745');
-INSERT INTO `case_categories` (`id`, `parent_id`, `name`, `description`, `icon`, `color`, `order`, `is_active`, `created_at`, `updated_at`) VALUES (15, 2, '安全合规', '关注安全与合规的技术案例', 'mdi:shield-lock', '#2080f0', 4, 1, '2025-12-05 10:00:00.000000', '2025-12-05 10:00:00.000000');
-INSERT INTO `case_categories` (`id`, `parent_id`, `name`, `description`, `icon`, `color`, `order`, `is_active`, `created_at`, `updated_at`) VALUES (16, 3, '敏捷实践', '敏捷与 DevOps 项目案例', 'mdi:run-fast', '#f0a020', 4, 1, '2025-12-05 10:00:00.000000', '2025-12-05 10:00:00.000000');
-INSERT INTO `case_categories` (`id`, `parent_id`, `name`, `description`, `icon`, `color`, `order`, `is_active`, `created_at`, `updated_at`) VALUES (17, 16, '持续集成', 'CI/CD 场景下的思政案例', 'mdi:lan-connect', '#f0a020', 1, 1, '2025-12-05 10:00:00.000000', '2025-12-05 10:00:00.000000');
-INSERT INTO `case_categories` (`id`, `parent_id`, `name`, `description`, `icon`, `color`, `order`, `is_active`, `created_at`, `updated_at`) VALUES (18, 1, '数字伦理', '隐私保护与算法伦理案例', 'mdi:scale-balance', '#18a058', 6, 1, '2025-12-05 10:00:00.000000', '2025-12-05 10:00:00.000000');
-COMMIT;
-
--- ----------------------------
--- Table structure for case_category_rel
--- ----------------------------
-DROP TABLE IF EXISTS `case_category_rel`;
-CREATE TABLE `case_category_rel` (
-  `id` bigint NOT NULL AUTO_INCREMENT,
-  `case_id` bigint NOT NULL COMMENT '案例ID',
-  `category_id` bigint NOT NULL COMMENT '分类ID',
-  PRIMARY KEY (`id`),
-  KEY `idx_case` (`case_id`),
-  KEY `idx_category` (`category_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=30 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='案例-分类关联表';
-
--- ----------------------------
--- Records of case_category_rel
--- ----------------------------
-BEGIN;
-INSERT INTO `case_category_rel` (`id`, `case_id`, `category_id`) VALUES (1, 1, 4);
-INSERT INTO `case_category_rel` (`id`, `case_id`, `category_id`) VALUES (2, 1, 15);
-INSERT INTO `case_category_rel` (`id`, `case_id`, `category_id`) VALUES (3, 3, 6);
-INSERT INTO `case_category_rel` (`id`, `case_id`, `category_id`) VALUES (4, 3, 18);
-INSERT INTO `case_category_rel` (`id`, `case_id`, `category_id`) VALUES (5, 4, 4);
-INSERT INTO `case_category_rel` (`id`, `case_id`, `category_id`) VALUES (6, 5, 5);
-INSERT INTO `case_category_rel` (`id`, `case_id`, `category_id`) VALUES (7, 5, 16);
-INSERT INTO `case_category_rel` (`id`, `case_id`, `category_id`) VALUES (8, 5, 17);
-INSERT INTO `case_category_rel` (`id`, `case_id`, `category_id`) VALUES (9, 6, 16);
-INSERT INTO `case_category_rel` (`id`, `case_id`, `category_id`) VALUES (10, 7, 4);
-INSERT INTO `case_category_rel` (`id`, `case_id`, `category_id`) VALUES (11, 7, 7);
-INSERT INTO `case_category_rel` (`id`, `case_id`, `category_id`) VALUES (12, 8, 8);
-INSERT INTO `case_category_rel` (`id`, `case_id`, `category_id`) VALUES (13, 9, 4);
-INSERT INTO `case_category_rel` (`id`, `case_id`, `category_id`) VALUES (14, 9, 6);
-INSERT INTO `case_category_rel` (`id`, `case_id`, `category_id`) VALUES (15, 9, 15);
-INSERT INTO `case_category_rel` (`id`, `case_id`, `category_id`) VALUES (16, 10, 5);
-INSERT INTO `case_category_rel` (`id`, `case_id`, `category_id`) VALUES (17, 10, 16);
-INSERT INTO `case_category_rel` (`id`, `case_id`, `category_id`) VALUES (18, 11, 7);
-INSERT INTO `case_category_rel` (`id`, `case_id`, `category_id`) VALUES (19, 11, 8);
-INSERT INTO `case_category_rel` (`id`, `case_id`, `category_id`) VALUES (20, 7, 4);
-INSERT INTO `case_category_rel` (`id`, `case_id`, `category_id`) VALUES (21, 7, 7);
-INSERT INTO `case_category_rel` (`id`, `case_id`, `category_id`) VALUES (22, 8, 8);
-INSERT INTO `case_category_rel` (`id`, `case_id`, `category_id`) VALUES (23, 9, 4);
-INSERT INTO `case_category_rel` (`id`, `case_id`, `category_id`) VALUES (24, 9, 6);
-INSERT INTO `case_category_rel` (`id`, `case_id`, `category_id`) VALUES (25, 9, 15);
-INSERT INTO `case_category_rel` (`id`, `case_id`, `category_id`) VALUES (26, 10, 5);
-INSERT INTO `case_category_rel` (`id`, `case_id`, `category_id`) VALUES (27, 10, 16);
-INSERT INTO `case_category_rel` (`id`, `case_id`, `category_id`) VALUES (28, 11, 7);
-INSERT INTO `case_category_rel` (`id`, `case_id`, `category_id`) VALUES (29, 11, 8);
 COMMIT;
 
 -- ----------------------------
@@ -592,7 +504,6 @@ INSERT INTO `menu` (`id`, `created_at`, `updated_at`, `name`, `remark`, `menu_ty
 INSERT INTO `menu` (`id`, `created_at`, `updated_at`, `name`, `remark`, `menu_type`, `icon`, `path`, `order`, `parent_id`, `is_hidden`, `component`, `keepalive`, `redirect`) VALUES (9, '2025-11-21 07:36:10.441460', '2025-12-04 16:41:39.610884', '提示词助手', NULL, 'menu', 'mdi:robot-outline', 'prompt-assistant', 6, 4, 0, '/aigc/prompt-assistant', 0, NULL);
 INSERT INTO `menu` (`id`, `created_at`, `updated_at`, `name`, `remark`, `menu_type`, `icon`, `path`, `order`, `parent_id`, `is_hidden`, `component`, `keepalive`, `redirect`) VALUES (13, '2025-12-04 14:45:05.640065', '2025-12-04 16:41:39.637834', '课程管理', NULL, 'catalog', 'material-symbols:school-outline', '/courses', 999, 0, 1, 'Layout', 0, '/courses');
 INSERT INTO `menu` (`id`, `created_at`, `updated_at`, `name`, `remark`, `menu_type`, `icon`, `path`, `order`, `parent_id`, `is_hidden`, `component`, `keepalive`, `redirect`) VALUES (14, '2025-12-04 14:45:05.641428', '2025-12-04 16:41:39.491657', '章节管理', NULL, 'menu', 'material-symbols:menu-book', 'index', 2, 4, 0, '/courses', 0, NULL);
-INSERT INTO `menu` (`id`, `created_at`, `updated_at`, `name`, `remark`, `menu_type`, `icon`, `path`, `order`, `parent_id`, `is_hidden`, `component`, `keepalive`, `redirect`) VALUES (15, '2025-12-04 14:45:05.642149', '2025-12-04 16:41:39.466452', '案例分类', NULL, 'menu', 'material-symbols:category-outline', 'categories', 1, 4, 0, '/courses/categories', 0, NULL);
 COMMIT;
 
 -- ----------------------------
@@ -838,8 +749,6 @@ INSERT INTO `role_menu` (`role_id`, `menu_id`) VALUES (1, 13);
 INSERT INTO `role_menu` (`role_id`, `menu_id`) VALUES (2, 13);
 INSERT INTO `role_menu` (`role_id`, `menu_id`) VALUES (1, 14);
 INSERT INTO `role_menu` (`role_id`, `menu_id`) VALUES (2, 14);
-INSERT INTO `role_menu` (`role_id`, `menu_id`) VALUES (1, 15);
-INSERT INTO `role_menu` (`role_id`, `menu_id`) VALUES (2, 15);
 COMMIT;
 
 -- ----------------------------

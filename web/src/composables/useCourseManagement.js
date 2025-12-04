@@ -24,10 +24,6 @@ export function useCourseManagement() {
   const currentKnowledgePoint = ref(null)
   const knowledgePointsLoading = ref(false)
   
-  // Category state
-  const categoryTree = ref([])
-  const categoriesLoading = ref(false)
-  
   // Error state
   const error = ref(null)
   
@@ -420,103 +416,6 @@ export function useCourseManagement() {
     currentKnowledgePoint.value = kp
   }
   
-  // ==================== Category Methods ====================
-  
-  /**
-   * Fetch category tree
-   */
-  async function fetchCategoryTree() {
-    try {
-      categoriesLoading.value = true
-      error.value = null
-      const response = await courseApi.getCategoryTree()
-      
-      categoryTree.value = response.data || response
-      return categoryTree.value
-    } catch (err) {
-      error.value = err
-      throw err
-    } finally {
-      categoriesLoading.value = false
-    }
-  }
-  
-  /**
-   * Create new category
-   * @param {Object} categoryData - Category data
-   */
-  async function createCategory(categoryData) {
-    try {
-      error.value = null
-      const response = await courseApi.createCategory(categoryData)
-      const newCategory = response.data || response
-      
-      // Refresh tree to get updated structure
-      await fetchCategoryTree()
-      
-      return newCategory
-    } catch (err) {
-      error.value = err
-      throw err
-    }
-  }
-  
-  /**
-   * Update category
-   * @param {number} id - Category ID
-   * @param {Object} categoryData - Category data to update
-   */
-  async function updateCategory(id, categoryData) {
-    try {
-      error.value = null
-      const response = await courseApi.updateCategory(id, categoryData)
-      const updatedCategory = response.data || response
-      
-      // Refresh tree to get updated structure
-      await fetchCategoryTree()
-      
-      return updatedCategory
-    } catch (err) {
-      error.value = err
-      throw err
-    }
-  }
-  
-  /**
-   * Delete category
-   * @param {number} id - Category ID
-   */
-  async function deleteCategory(id) {
-    try {
-      error.value = null
-      await courseApi.deleteCategory(id)
-      
-      // Refresh tree to get updated structure
-      await fetchCategoryTree()
-    } catch (err) {
-      error.value = err
-      throw err
-    }
-  }
-  
-  /**
-   * Move category (drag and drop)
-   * @param {number} id - Category ID
-   * @param {Object} moveData - Move data {parent_id, order_num}
-   */
-  async function moveCategory(id, moveData) {
-    try {
-      error.value = null
-      await courseApi.moveCategory(id, moveData)
-      
-      // Refresh tree to get updated structure
-      await fetchCategoryTree()
-    } catch (err) {
-      error.value = err
-      throw err
-    }
-  }
-  
   // ==================== Utility Methods ====================
   
   /**
@@ -529,7 +428,6 @@ export function useCourseManagement() {
     currentChapter.value = null
     knowledgePoints.value = []
     currentKnowledgePoint.value = null
-    categoryTree.value = []
     error.value = null
   }
   
@@ -552,8 +450,6 @@ export function useCourseManagement() {
     knowledgePoints,
     currentKnowledgePoint,
     knowledgePointsLoading,
-    categoryTree,
-    categoriesLoading,
     error,
     
     // Computed
@@ -584,13 +480,6 @@ export function useCourseManagement() {
     updateKnowledgePoint,
     deleteKnowledgePoint,
     setCurrentKnowledgePoint,
-    
-    // Category methods
-    fetchCategoryTree,
-    createCategory,
-    updateCategory,
-    deleteCategory,
-    moveCategory,
     
     // Utility methods
     clearState,
