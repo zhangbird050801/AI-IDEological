@@ -23,6 +23,12 @@
                 </template>
                 导入案例
               </n-button>
+              <n-button tertiary @click="gotoCategoryManage">
+                <template #icon>
+                  <n-icon><Icon icon="material-symbols:category-outline" /></n-icon>
+                </template>
+                分类管理
+              </n-button>
               <n-button @click="showBatchOperations" v-if="selectedCases.length > 0">
                 <template #icon>
                   <n-icon><Icon icon="ant-design:setting-outlined" /></n-icon>
@@ -103,6 +109,19 @@
                 :options="caseTypeOptions"
                 clearable
                 @clear="handleSearch"
+              />
+            </n-form-item-grid-item>
+
+            <n-form-item-grid-item :span="1" label="案例分类">
+              <n-tree-select
+                v-model:value="searchForm.category_ids"
+                placeholder="选择分类"
+                :options="categoryTreeOptions"
+                multiple
+                checkable
+                clearable
+                :loading="loadingCategories"
+                @update:value="handleSearch"
               />
             </n-form-item-grid-item>
           </n-grid>
@@ -313,6 +332,74 @@
           </n-form-item-grid-item>
         </n-grid>
 
+        <!-- 课程关联字段 -->
+        <n-divider style="margin: 16px 0;">课程关联</n-divider>
+        
+        <n-form-item label="关联课程" path="course_id">
+          <n-select
+            v-model:value="caseForm.course_id"
+            placeholder="选择课程（可选）"
+            :options="courseOptions"
+            clearable
+            filterable
+            @update:value="handleCourseChange"
+          />
+        </n-form-item>
+
+        <n-grid :cols="2" :x-gap="16" v-if="caseForm.course_id">
+          <n-form-item-grid-item label="关联章节" path="chapter_id">
+            <n-select
+              v-model:value="caseForm.chapter_id"
+              placeholder="选择章节（可选）"
+              :options="courseChapterOptions"
+              :disabled="!caseForm.course_id || loadingChapters"
+              :loading="loadingChapters"
+              clearable
+              filterable
+              @update:value="handleChapterChange"
+            />
+          </n-form-item-grid-item>
+
+          <n-form-item-grid-item label="关联知识点" path="knowledge_point_id">
+            <n-select
+              v-model:value="caseForm.knowledge_point_id"
+              placeholder="选择知识点（可选）"
+              :options="knowledgePointOptions"
+              :disabled="!caseForm.chapter_id || loadingKnowledgePoints"
+              :loading="loadingKnowledgePoints"
+              clearable
+              filterable
+            />
+          </n-form-item-grid-item>
+        </n-grid>
+
+        <n-form-item label="案例分类" path="category_ids">
+          <n-tree-select
+            v-model:value="caseForm.category_ids"
+            :options="categoryTreeOptions"
+            placeholder="选择案例分类（可多选）"
+            multiple
+            checkable
+            cascade
+            check-strategy="child"
+            clearable
+            filterable
+            :loading="loadingCategories"
+          />
+          <div style="margin-top: 8px;">
+            <n-space v-if="caseForm.category_ids && caseForm.category_ids.length > 0" size="small">
+              <n-tag
+                v-for="catId in caseForm.category_ids"
+                :key="catId"
+                closable
+                @close="removeCategoryTag(catId)"
+              >
+                {{ getCategoryName(catId) }}
+              </n-tag>
+            </n-space>
+          </div>
+        </n-form-item>
+
         <n-grid :cols="2" :x-gap="16">
           <n-form-item-grid-item label="案例类型" path="case_type">
             <n-select
@@ -433,6 +520,49 @@
               </n-space>
             </n-descriptions-item>
           </n-descriptions>
+
+          <!-- 课程关联层级 -->
+          <n-card 
+            title="课程关联" 
+            size="small" 
+            v-if="currentCase.course_name || currentCase.chapter_name || currentCase.knowledge_point_name"
+          >
+            <n-space vertical size="small">
+              <div v-if="currentCase.course_name" style="display: flex; align-items: center;">
+                <n-icon size="18" style="margin-right: 8px;">
+                  <Icon icon="ant-design:book-outlined" />
+                </n-icon>
+                <n-breadcrumb>
+                  <n-breadcrumb-item>
+                    <n-tag type="primary">{{ currentCase.course_name }}</n-tag>
+                  </n-breadcrumb-item>
+                  <n-breadcrumb-item v-if="currentCase.chapter_name">
+                    <n-tag type="info">{{ currentCase.chapter_name }}</n-tag>
+                  </n-breadcrumb-item>
+                  <n-breadcrumb-item v-if="currentCase.knowledge_point_name">
+                    <n-tag type="success">{{ currentCase.knowledge_point_name }}</n-tag>
+                  </n-breadcrumb-item>
+                </n-breadcrumb>
+              </div>
+            </n-space>
+          </n-card>
+
+          <!-- 案例分类 -->
+          <n-card 
+            title="案例分类" 
+            size="small" 
+            v-if="currentCase.category_ids && currentCase.category_ids.length > 0"
+          >
+            <n-space>
+              <n-tag 
+                v-for="catId in currentCase.category_ids" 
+                :key="catId"
+                type="warning"
+              >
+                {{ getCategoryName(catId) }}
+              </n-tag>
+            </n-space>
+          </n-card>
 
           <!-- 案例内容 -->
           <n-card title="案例内容" size="small">
@@ -651,6 +781,7 @@
 
 <script setup>
 import { ref, reactive, onMounted, h } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import {
   NCard,
   NButton,
@@ -658,8 +789,10 @@ import {
   NSpace,
   NForm,
   NFormItem,
+  NFormItemGridItem,
   NInput,
   NSelect,
+  NTreeSelect,
   NGrid,
   NGridItem,
   NTag,
@@ -683,6 +816,8 @@ import {
   NDivider,
   NText,
   NEllipsis,
+  NBreadcrumb,
+  NBreadcrumbItem,
   useMessage,
   useDialog,
 } from 'naive-ui'
@@ -690,10 +825,13 @@ import { Icon } from '@iconify/vue'
 import AppPage from '@/components/page/AppPage.vue'
 import { request } from '@/utils/http'
 import { casesApi } from '@/api/ideological'
+import api from '@/api'
 
 // 响应式数据
 const message = useMessage()
 const dialog = useDialog()
+const router = useRouter()
+const route = useRoute()
 
 const loading = ref(false)
 const submitLoading = ref(false)
@@ -727,6 +865,7 @@ const searchForm = reactive({
   ideological_theme: null,
   case_type: null,
   difficulty_level: null,
+  category_ids: [],
   show_favorites_only: false, // 只显示收藏的案例
 })
 
@@ -744,6 +883,11 @@ const caseForm = reactive({
   teaching_suggestions: '',
   tags: [],
   is_public: true,
+  // 课程关联字段
+  course_id: null,
+  chapter_id: null,
+  knowledge_point_id: null,
+  category_ids: [],
 })
 
 // 案例列表
@@ -774,6 +918,18 @@ const difficultyOptions = ref([
   { label: '难度4', value: 4 },
   { label: '难度5', value: 5 },
 ])
+
+// 课程关联选项
+const courseOptions = ref([])
+const courseChapterOptions = ref([])
+const knowledgePointOptions = ref([])
+const categoryTreeOptions = ref([])
+const categoryMap = ref({})
+
+// 加载状态
+const loadingChapters = ref(false)
+const loadingKnowledgePoints = ref(false)
+const loadingCategories = ref(false)
 
 // 表单验证规则
 const caseFormRules = {
@@ -907,6 +1063,11 @@ const fetchCases = async () => {
       page_size: viewMode.value === 'list' ? pagination.pageSize : 12,
     }
 
+    // 空数组不传，避免后端误判
+    if (!params.category_ids || params.category_ids.length === 0) {
+      delete params.category_ids
+    }
+
     const response = await request.get('/ideological/cases/', { params })
     console.log('获取案例列表响应:', response)
     
@@ -940,19 +1101,21 @@ const fetchCases = async () => {
 const fetchOptions = async () => {
   try {
     // 获取章节选项
-    try {
-      const chaptersResponse = await casesApi.getChapters()
-      chapterOptions.value = chaptersResponse.map(item => ({
-        label: item,
-        value: item,
-      }))
-    } catch (error) {
-      // 使用默认章节数据
-      chapterOptions.value = [
-        "软件工程概述", "软件过程模型", "需求分析", "系统设计", "编码实现",
-        "软件测试", "软件维护", "项目管理", "软件质量", "软件工程前沿"
-      ].map(item => ({ label: item, value: item }))
-    }
+  try {
+    const chaptersResponse = await api.getChaptersByCourse(1)
+    const chapters = chaptersResponse?.data || chaptersResponse || []
+    chapterOptions.value = chapters.map((item) => ({
+      label: item.name,
+      value: item.name,
+    }))
+  } catch (error) {
+    console.error('获取章节选项失败:', error)
+    // 使用默认章节数据
+    chapterOptions.value = [
+      '软件工程概述', '软件过程模型', '需求分析', '系统设计', '编码实现',
+      '软件测试', '软件维护', '项目管理', '软件质量', '软件工程前沿',
+    ].map((item) => ({ label: item, value: item }))
+  }
 
     // 获取主题选项
     try {
@@ -968,8 +1131,137 @@ const fetchOptions = async () => {
         "法治意识", "科学精神", "人文素养", "家国情怀", "国际视野"
       ].map(item => ({ label: item, value: item }))
     }
+
+    // 获取课程列表
+    try {
+      const coursesResponse = await request.get('/courses/all', { params: { is_active: true } })
+      const courses = coursesResponse?.data || coursesResponse || []
+      courseOptions.value = courses.map(course => ({
+        label: course.name,
+        value: course.id,
+      }))
+    } catch (error) {
+      console.error('获取课程列表失败:', error)
+      courseOptions.value = []
+    }
+
+    // 获取分类树
+    await fetchCategories()
+
+    // 路由携带的分类预选
+    const queryCategories = route.query.category_ids
+    if (queryCategories) {
+      const arr = Array.isArray(queryCategories)
+        ? queryCategories
+        : String(queryCategories).split(',')
+      searchForm.category_ids = arr.filter(Boolean).map((v) => Number(v) || v)
+    }
   } catch (error) {
     message.error('获取选项数据失败')
+  }
+}
+
+// 获取分类树
+const fetchCategories = async () => {
+  loadingCategories.value = true
+  try {
+    const response = await request.get('/case-categories/tree')
+    const categories = response?.data || response || []
+    
+    // 构建分类映射
+    const buildCategoryMap = (cats, map = {}) => {
+      cats.forEach(cat => {
+        map[cat.id] = cat.name
+        if (cat.children && cat.children.length > 0) {
+          buildCategoryMap(cat.children, map)
+        }
+      })
+      return map
+    }
+    categoryMap.value = buildCategoryMap(categories)
+    
+    // 转换为树选择器格式
+    const convertToTreeSelect = (cats) => {
+      return cats.map(cat => ({
+        label: cat.name,
+        value: cat.id,
+        key: cat.id,
+        children: cat.children && cat.children.length > 0 ? convertToTreeSelect(cat.children) : undefined,
+      }))
+    }
+    categoryTreeOptions.value = convertToTreeSelect(categories)
+  } catch (error) {
+    console.error('获取分类树失败:', error)
+    categoryTreeOptions.value = []
+  } finally {
+    loadingCategories.value = false
+  }
+}
+
+// 处理课程选择变化
+const handleCourseChange = async (courseId) => {
+  // 清空依赖的下拉框
+  caseForm.chapter_id = null
+  caseForm.knowledge_point_id = null
+  courseChapterOptions.value = []
+  knowledgePointOptions.value = []
+  
+  if (!courseId) return
+  
+  // 加载该课程的章节
+  loadingChapters.value = true
+  try {
+    const response = await request.get('/chapters/', { params: { course_id: courseId } })
+    const chapters = response?.data || response || []
+    courseChapterOptions.value = chapters
+      .sort((a, b) => (a.order || 0) - (b.order || 0))
+      .map(chapter => ({
+        label: chapter.name,
+        value: chapter.id,
+      }))
+  } catch (error) {
+    console.error('获取章节列表失败:', error)
+    courseChapterOptions.value = []
+  } finally {
+    loadingChapters.value = false
+  }
+}
+
+// 处理章节选择变化
+const handleChapterChange = async (chapterId) => {
+  // 清空知识点
+  caseForm.knowledge_point_id = null
+  knowledgePointOptions.value = []
+  
+  if (!chapterId) return
+  
+  // 加载该章节的知识点
+  loadingKnowledgePoints.value = true
+  try {
+    const response = await request.get('/knowledge-points/', { params: { chapter_id: chapterId } })
+    const knowledgePoints = response?.data || response || []
+    knowledgePointOptions.value = knowledgePoints.map(kp => ({
+      label: kp.name,
+      value: kp.id,
+    }))
+  } catch (error) {
+    console.error('获取知识点列表失败:', error)
+    knowledgePointOptions.value = []
+  } finally {
+    loadingKnowledgePoints.value = false
+  }
+}
+
+// 获取分类名称
+const getCategoryName = (categoryId) => {
+  return categoryMap.value[categoryId] || `分类${categoryId}`
+}
+
+// 移除分类标签
+const removeCategoryTag = (categoryId) => {
+  const index = caseForm.category_ids.indexOf(categoryId)
+  if (index > -1) {
+    caseForm.category_ids.splice(index, 1)
   }
 }
 
@@ -985,9 +1277,14 @@ const resetSearch = () => {
     ideological_theme: null,
     case_type: null,
     difficulty_level: null,
+    category_ids: [],
     show_favorites_only: false,
   })
   handleSearch()
+}
+
+const gotoCategoryManage = () => {
+  router.push('/aigc/categories')
 }
 
 const handlePageChange = (page) => {
@@ -1190,12 +1487,32 @@ const resetCaseForm = () => {
     teaching_suggestions: '',
     tags: [],
     is_public: true,
+    course_id: null,
+    chapter_id: null,
+    knowledge_point_id: null,
+    category_ids: [],
   })
+  // 清空级联选项
+  courseChapterOptions.value = []
+  knowledgePointOptions.value = []
 }
 
-const editCase = (case_item) => {
+const editCase = async (case_item) => {
   editingCase.value = case_item
-  Object.assign(caseForm, case_item)
+  Object.assign(caseForm, {
+    ...case_item,
+    category_ids: case_item.category_ids || [],
+  })
+  
+  // 如果有课程ID，加载对应的章节
+  if (case_item.course_id) {
+    await handleCourseChange(case_item.course_id)
+    // 如果有章节ID，加载对应的知识点
+    if (case_item.chapter_id) {
+      await handleChapterChange(case_item.chapter_id)
+    }
+  }
+  
   createModalVisible.value = true
 }
 
@@ -1590,11 +1907,11 @@ onMounted(() => {
 }
 
 .page-header {
-  background: linear-gradient(135deg, #18a058 0%, #36ad6a 100%);
-  color: white;
+  background: white;
   padding: 24px;
   border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(24, 160, 88, 0.2);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  margin-bottom: 16px;
 }
 
 .header-content {
@@ -1607,12 +1924,13 @@ onMounted(() => {
   margin: 0 0 8px 0;
   font-size: 24px;
   font-weight: 600;
+  color: var(--n-text-color);
 }
 
 .title-section p {
   margin: 0;
-  opacity: 0.9;
   font-size: 14px;
+  color: var(--n-text-color-depth-3);
 }
 
 .search-section {

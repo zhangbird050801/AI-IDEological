@@ -1,10 +1,57 @@
 import { defineStore } from 'pinia'
+import { shallowRef } from 'vue'
 import { basicRoutes, vueModules } from '@/router/routes'
 import Layout from '@/layout/index.vue'
 import api from '@/api'
 
+// 捕获所有视图组件以便兜底解析（非 index.vue 的单文件）
+const allViewModules = import.meta.glob('@/views/**/*.vue')
+
+function resolveViewComponent(componentPath) {
+  const indexKey = `/src/views${componentPath}/index.vue`
+  const directKey = `/src/views${componentPath}.vue`
+  return vueModules[indexKey] || allViewModules[indexKey] || allViewModules[directKey]
+}
+
 // * 后端路由相关函数
 // 根据后端传来数据构建出前端路由
+
+function normalizeMenuItem(item) {
+  const normalized = { ...item }
+
+  // 展示名称调整：课程列表 -> 章节管理
+  if (normalized.component === '/courses' && normalized.name === '课程列表') {
+    normalized.name = '章节管理'
+  }
+
+  // 案例分类菜单已移到课程思政下
+  const isCaseCategory =
+    normalized.name === '案例分类' || normalized.path === 'categories' || normalized.path?.includes('categories')
+  if (isCaseCategory) {
+    normalized.component = '/courses/categories' // 保持组件路径不变
+  }
+
+  if (Array.isArray(normalized.children)) {
+    normalized.children = normalized.children.map((child) => normalizeMenuItem(child))
+  }
+
+  return normalized
+}
+
+function dedupeMenuTree(items = []) {
+  const seen = new Set()
+
+  return items.reduce((acc, raw) => {
+    const item = normalizeMenuItem(raw)
+    const key = `${item.name}|${item.path}|${item.component || ''}`
+    if (seen.has(key)) return acc
+    seen.add(key)
+
+    const dedupedChildren = Array.isArray(item.children) ? dedupeMenuTree(item.children) : []
+    acc.push({ ...item, children: dedupedChildren })
+    return acc
+  }, [])
+}
 
 function buildRoutes(routes = []) {
   return routes.map((e) => {
@@ -28,7 +75,7 @@ function buildRoutes(routes = []) {
       route.children = e.children.map((e_child) => ({
         name: e_child.name,
         path: e_child.path,
-        component: vueModules[`/src/views${e_child.component}/index.vue`],
+        component: resolveViewComponent(e_child.component),
         isHidden: e_child.is_hidden,
         meta: {
           title: e_child.name,
@@ -42,7 +89,7 @@ function buildRoutes(routes = []) {
       route.children.push({
         name: `${e.name}Default`,
         path: '',
-        component: vueModules[`/src/views${e.component}/index.vue`],
+        component: resolveViewComponent(e.component),
         isHidden: true,
         meta: {
           title: e.name,
@@ -80,8 +127,9 @@ export const usePermissionStore = defineStore('permission', {
       const res = await api.getUserMenu() // 调用接口获取后端传来的菜单路由
       // Support multiple possible shapes: plain array, { data: [...] }, or envelope { code, data }
       const menuPayload = Array.isArray(res) ? res : res && (res.data ?? res)
+      const normalizedMenus = dedupeMenuTree(menuPayload || [])
 
-      this.accessRoutes = buildRoutes(menuPayload || []) // 处理成前端路由格式
+      this.accessRoutes = buildRoutes(normalizedMenus) // 处理成前端路由格式
       return this.accessRoutes
     },
     async getAccessApis() {

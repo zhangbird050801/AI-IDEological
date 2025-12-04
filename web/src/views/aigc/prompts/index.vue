@@ -427,7 +427,11 @@ const fetchOptions = async () => {
         { label: "思考题生成", value: "thinking_generation" },
         { label: "内容优化", value: "content_optimization" },
         { label: "教学设计", value: "teaching_design" },
-        { label: "知识点讲解", value: "knowledge_point" }
+        { label: "知识点讲解", value: "knowledge_point" },
+        { label: "项目实践设计", value: "project_design" },
+        { label: "知识点解析", value: "knowledge_explanation" },
+        { label: "评价与考核设计", value: "evaluation_design" },
+        { label: "实践练习", value: "practice" }
       ]
     }
 
@@ -799,11 +803,10 @@ onMounted(() => {
 }
 
 .page-header {
-  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
-  color: white;
+  background: white;
   padding: 24px;
   border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.2);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   margin-bottom: 16px;
 }
 
@@ -817,12 +820,13 @@ onMounted(() => {
   margin: 0 0 8px 0;
   font-size: 24px;
   font-weight: 600;
+  color: var(--n-text-color);
 }
 
 .title-section p {
   margin: 0;
-  opacity: 0.9;
   font-size: 14px;
+  color: var(--n-text-color-depth-3);
 }
 
 .search-section {

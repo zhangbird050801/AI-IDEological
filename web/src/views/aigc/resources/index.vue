@@ -121,6 +121,7 @@
           </n-space>
         </template>
 
+        <template v-if="resourcesList.length > 0">
         <!-- 网格视图 -->
         <div class="grid-view">
           <n-grid :cols="3" :x-gap="16" :y-gap="16">
@@ -128,17 +129,18 @@
               <n-card
                 class="resource-card"
                 hoverable
-                @click="viewResourceDetail(resource)"
+                @click="previewResource(resource)"
               >
                 <template #cover>
                   <div class="resource-cover" @click.stop>
                     <!-- 文件资源预览 -->
                     <div v-if="resource.file_url" class="file-preview">
                       <img
-                        v-if="resource.resource_type === 'image' && resource.preview_url"
-                        :src="resource.preview_url"
+                        v-if="resource.resource_type === 'image'"
+                        :src="resource.preview_url || resource.file_url"
                         :alt="resource.title"
                         class="preview-image"
+                        @click.stop="openPreview(resource)"
                       />
                       <div v-else class="file-icon">
                         <n-icon size="48" :color="getResourceIconColor(resource.resource_type)">
@@ -196,9 +198,6 @@
                       <span class="file-size" v-if="resource.file_size">
                         {{ formatFileSize(resource.file_size) }}
                       </span>
-                      <span class="usage-count">
-                        {{ resource.usage_count }} 次使用
-                      </span>
                     </n-space>
                   </div>
                 </div>
@@ -219,6 +218,16 @@
                           下载
                         </n-button>
                         <n-button
+                          size="small"
+                          text
+                          @click.stop="previewResource(resource)"
+                        >
+                          <template #icon>
+                            <n-icon><Icon icon="ant-design:eye-outlined" /></n-icon>
+                          </template>
+                          预览
+                        </n-button>
+                        <n-button
                           v-if="resource.external_url"
                           size="small"
                           text
@@ -229,23 +238,12 @@
                           </template>
                           访问
                         </n-button>
-                        <n-button
-                          v-if="resource.preview_url"
-                          size="small"
-                          text
-                          @click.stop="previewResource(resource)"
-                        >
-                          <template #icon>
-                            <n-icon><Icon icon="ant-design:eye-outlined" /></n-icon>
-                          </template>
-                          预览
-                        </n-button>
                       </n-space>
 
                       <n-dropdown
                         trigger="hover"
                         :options="getResourceActionOptions(resource)"
-                        @select="handleResourceAction"
+                        @select="(key) => handleResourceAction(key, resource)"
                       >
                         <n-button size="small" text @click.stop>
                           <template #icon>
@@ -272,12 +270,13 @@
           @update:page-size="handlePageSizeChange"
           style="margin-top: 24px; justify-content: center"
         />
+        </template>
 
         <!-- 空状态 -->
         <n-empty
-          v-if="!loading && resourcesList.length === 0"
+          v-else-if="!loading"
           description="暂无资源数据"
-          style="margin: 40px 0"
+          class="resources-empty"
         >
           <template #action>
             <n-button type="primary" @click="showUploadModal">
@@ -334,6 +333,15 @@
               </n-p>
             </n-upload-dragger>
           </n-upload>
+        </n-form-item>
+
+        <n-form-item label="资源类型" path="resource_type">
+          <n-select
+            v-model:value="uploadForm.resource_type"
+            :options="resourceTypeOptions"
+            placeholder="选择资源类型"
+            clearable
+          />
         </n-form-item>
 
         <n-form-item label="资源描述" path="description">
@@ -417,6 +425,15 @@
           />
         </n-form-item>
 
+        <n-form-item label="资源类型" path="resource_type">
+          <n-select
+            v-model:value="linkForm.resource_type"
+            :options="resourceTypeOptions"
+            placeholder="选择资源类型"
+            clearable
+          />
+        </n-form-item>
+
         <n-form-item label="链接地址" path="external_url">
           <n-input
             v-model:value="linkForm.external_url"
@@ -480,11 +497,32 @@
         </n-space>
       </template>
     </n-modal>
+
+    <!-- 预览弹窗 -->
+    <n-modal
+      v-model:show="previewVisible"
+      :mask-closable="false"
+      preset="dialog"
+      class="preview-modal"
+      title="资源预览"
+      style="width: 80vw; max-width: 1100px"
+    >
+      <n-spin :show="previewLoading">
+        <div v-if="previewType === 'image'" class="preview-image-wrapper">
+          <img :src="previewImageUrl" class="preview-image-full" alt="预览图片" />
+        </div>
+        <div v-else-if="previewType === 'docx'" ref="docxContainerRef" class="preview-docx-wrapper"></div>
+        <div v-else class="preview-fallback">
+          <p>该类型暂不支持内嵌预览。</p>
+          <n-button type="primary" @click="openExternalPreview">新窗口打开</n-button>
+        </div>
+      </n-spin>
+    </n-modal>
   </AppPage>
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, nextTick } from 'vue'
 import {
   NCard,
   NButton,
@@ -516,6 +554,8 @@ import { Icon } from '@iconify/vue'
 import AppPage from '@/components/page/AppPage.vue'
 import { request } from '@/utils/http'
 import { resourcesApi, casesApi } from '@/api/ideological'
+import { renderAsync as renderDocx } from 'docx-preview'
+import { getToken } from '@/utils/auth/token'
 
 // 响应式数据
 const message = useMessage()
@@ -526,6 +566,12 @@ const uploadLoading = ref(false)
 const linkLoading = ref(false)
 const uploadModalVisible = ref(false)
 const addLinkModalVisible = ref(false)
+const previewVisible = ref(false)
+const previewLoading = ref(false)
+const previewType = ref('')
+const previewUrl = ref('')
+const previewImageUrl = ref('')
+const docxContainerRef = ref(null)
 
 // 统计数据
 const totalResources = ref(0)
@@ -547,6 +593,7 @@ const uploadForm = reactive({
   title: '',
   description: '',
   fileList: [],
+  resource_type: 'other',
   software_engineering_chapter: null,
   ideological_theme: null,
   tags: [],
@@ -559,6 +606,7 @@ const linkForm = reactive({
   title: '',
   description: '',
   external_url: '',
+  resource_type: 'link',
   software_engineering_chapter: null,
   ideological_theme: null,
   tags: [],
@@ -589,12 +637,18 @@ const uploadFormRules = {
   fileList: [
     { required: true, message: '请选择要上传的文件', trigger: 'change' },
   ],
+  resource_type: [
+    { required: true, message: '请选择资源类型', trigger: 'change' },
+  ],
 }
 
 const linkFormRules = {
   title: [
     { required: true, message: '请输入资源标题', trigger: 'blur' },
     { max: 100, message: '标题长度不能超过100个字符', trigger: 'blur' },
+  ],
+  resource_type: [
+    { required: true, message: '请选择资源类型', trigger: 'change' },
   ],
   external_url: [
     { required: true, message: '请输入链接地址', trigger: 'blur' },
@@ -613,8 +667,9 @@ const fetchResources = async () => {
     }
 
     const response = await request.get('/ideological/resources/', { params })
-    resourcesList.value = response.items
-    pagination.itemCount = response.total
+    const data = response?.data || response || {}
+    resourcesList.value = data.items || []
+    pagination.itemCount = data.total || 0
   } catch (error) {
     message.error('获取资源列表失败')
   } finally {
@@ -627,19 +682,10 @@ const fetchOptions = async () => {
     // 获取资源类型选项
     try {
       const typesResponse = await request.get('/ideological/resources/types/list')
-      resourceTypeOptions.value = typesResponse
+      resourceTypeOptions.value = normalizeResourceTypeOptions(typesResponse)
     } catch (error) {
       // 使用默认资源类型数据
-      resourceTypeOptions.value = [
-        { label: "文档", value: "document" },
-        { label: "视频", value: "video" },
-        { label: "音频", value: "audio" },
-        { label: "图片", value: "image" },
-        { label: "演示文稿", value: "presentation" },
-        { label: "虚拟仿真", value: "simulation" },
-        { label: "外部链接", value: "link" },
-        { label: "其他", value: "other" }
-      ]
+      resourceTypeOptions.value = normalizeResourceTypeOptions()
     }
 
     // 获取章节选项
@@ -680,7 +726,8 @@ const fetchStatistics = async () => {
   try {
     // 获取统计数据
     const allResponse = await request.get('/ideological/resources/', { params: { page_size: 1 } })
-    const total = allResponse?.total ?? 0
+    const data = allResponse?.data || allResponse || {}
+    const total = data?.total ?? 0
 
     totalResources.value = total
     myResources.value = Math.floor(total * 0.6)
@@ -731,6 +778,7 @@ const resetUploadForm = () => {
     title: '',
     description: '',
     fileList: [],
+    resource_type: 'other',
     software_engineering_chapter: null,
     ideological_theme: null,
     tags: [],
@@ -742,6 +790,24 @@ const handleFileChange = (options) => {
   // 自动填充标题
   if (options.fileList.length > 0 && !uploadForm.title) {
     uploadForm.title = options.fileList[0].name.replace(/\.[^/.]+$/, '')
+  }
+
+  // 根据扩展名猜测资源类型
+  if (options.fileList.length > 0) {
+    const ext = options.fileList[0].name.split('.').pop()?.toLowerCase() || ''
+    const map = {
+      document: ['pdf', 'doc', 'docx', 'txt', 'rtf'],
+      video: ['mp4', 'avi', 'mov', 'wmv', 'flv'],
+      audio: ['mp3', 'wav', 'flac', 'aac'],
+      image: ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg'],
+      presentation: ['ppt', 'pptx', 'key'],
+    }
+    for (const [type, exts] of Object.entries(map)) {
+      if (exts.includes(ext)) {
+        uploadForm.resource_type = type
+        break
+      }
+    }
   }
 }
 
@@ -759,9 +825,10 @@ const handleUploadResource = async () => {
     formData.append('title', uploadForm.title)
     formData.append('description', uploadForm.description || '')
     formData.append('file', uploadForm.fileList[0].file)
+    formData.append('resource_type', uploadForm.resource_type || 'other')
     formData.append('software_engineering_chapter', uploadForm.software_engineering_chapter || '')
     formData.append('ideological_theme', uploadForm.ideological_theme || '')
-    formData.append('tags', JSON.stringify(uploadForm.tags))
+    formData.append('tags', (uploadForm.tags || []).join(','))
     formData.append('is_public', uploadForm.is_public)
 
     await request.post('/ideological/resources/', formData, {
@@ -791,6 +858,7 @@ const resetLinkForm = () => {
     title: '',
     description: '',
     external_url: '',
+    resource_type: 'link',
     software_engineering_chapter: null,
     ideological_theme: null,
     tags: [],
@@ -813,10 +881,9 @@ const handleAddLink = async () => {
 
     const linkData = {
       ...linkForm,
-      resource_type: 'link',
     }
 
-    await request.post('/ideological/resources/', linkData)
+    await request.post('/ideological/resources/json', linkData)
 
     message.success('链接添加成功')
     addLinkModalVisible.value = false
@@ -830,7 +897,7 @@ const handleAddLink = async () => {
 }
 
 const viewResourceDetail = (resource) => {
-  message.info(`查看资源: ${resource.title}`)
+  previewResource(resource)
 }
 
 const downloadResource = async (resource) => {
@@ -852,7 +919,81 @@ const openExternalLink = (resource) => {
 }
 
 const previewResource = (resource) => {
-  message.info(`预览功能开发中`)
+  openPreview(resource)
+}
+
+const detectPreviewType = (resource, url) => {
+  const lower = (url || '').split('?')[0].toLowerCase()
+  if (lower.endsWith('.pdf')) return 'pdf'
+  if (lower.endsWith('.docx') || lower.endsWith('.doc')) return 'docx'
+  if (lower.match(/\.(png|jpe?g|gif|bmp|svg)$/)) return 'image'
+  if (resource.resource_type === 'image') return 'image'
+  if (resource.resource_type === 'document' && lower.endsWith('.pdf')) return 'pdf'
+  if (resource.resource_type === 'document') return 'docx'
+  return 'other'
+}
+
+const openPreview = async (resource) => {
+  const url = resource.preview_url || resource.file_url || resource.download_url || resource.external_url
+  if (!url) {
+    message.warning('暂无可预览的链接')
+    return
+  }
+
+  const type = detectPreviewType(resource, url)
+  previewUrl.value = url
+  previewType.value = type
+  previewVisible.value = true
+  previewLoading.value = true
+  previewImageUrl.value = ''
+
+  await nextTick()
+  try {
+    if (type === 'pdf') {
+      // PDF 使用浏览器原生/新窗口预览，避免内嵌兼容性问题
+      window.open(url, '_blank')
+      previewVisible.value = false
+      return
+    } else if (type === 'docx') {
+      await renderDocxFile(url)
+    } else if (type === 'image') {
+      previewImageUrl.value = url
+    } else {
+      window.open(url, '_blank')
+      previewVisible.value = false
+    }
+  } catch (error) {
+    console.error('预览失败:', error)
+    message.error('预览失败，请下载查看')
+  } finally {
+    previewLoading.value = false
+  }
+}
+
+const openExternalPreview = () => {
+  if (previewUrl.value) {
+    window.open(previewUrl.value, '_blank')
+  }
+}
+
+const renderDocxFile = async (url) => {
+  const container = docxContainerRef.value
+  if (!container) return
+  container.innerHTML = ''
+  const headers = {}
+  const token = getAuthHeader()
+  if (token) headers.Authorization = token
+  const res = await fetch(url, { headers })
+  const buffer = await res.arrayBuffer()
+  await renderDocx(buffer, container, null, { inWrapper: true })
+}
+
+const getAuthHeader = () => {
+  const tokenObj = getToken()
+  if (!tokenObj) return ''
+  // token 可能直接是字符串或对象
+  const raw = typeof tokenObj === 'string' ? tokenObj : tokenObj.token || tokenObj.value || ''
+  return raw ? `Bearer ${raw}` : ''
 }
 
 const getResourceIcon = (type) => {
@@ -884,8 +1025,9 @@ const getResourceIconColor = (type) => {
 }
 
 const getResourceTypeLabel = (type) => {
-  const option = resourceTypeOptions.value.find(item => item.value === type)
-  return option ? option.label : type
+  const list = Array.isArray(resourceTypeOptions.value) ? resourceTypeOptions.value : []
+  const option = list.find(item => item?.value === type)
+  return option ? option.label : type || '未知类型'
 }
 
 const getResourceTypeTagType = (type) => {
@@ -908,6 +1050,34 @@ const formatFileSize = (bytes) => {
   const sizes = ['B', 'KB', 'MB', 'GB']
   const i = Math.floor(Math.log(bytes) / Math.log(k))
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
+}
+
+const normalizeResourceTypeOptions = (input) => {
+  const defaults = [
+    { label: "文档", value: "document" },
+    { label: "视频", value: "video" },
+    { label: "音频", value: "audio" },
+    { label: "图片", value: "image" },
+    { label: "演示文稿", value: "presentation" },
+    { label: "虚拟仿真", value: "simulation" },
+    { label: "外部链接", value: "link" },
+    { label: "其他", value: "other" }
+  ]
+
+  if (!input) return defaults
+  if (Array.isArray(input)) {
+    if (input.length === 0) return defaults
+    if (typeof input[0] === 'string') {
+      return input.map(v => ({ label: v, value: v }))
+    }
+    if (typeof input[0] === 'object') {
+      return input.map(v => ({
+        label: v.label || v.name || v.value || '未知类型',
+        value: v.value || v.name || v.label || 'other',
+      }))
+    }
+  }
+  return defaults
 }
 
 const getResourceActionOptions = (resource) => {
@@ -934,9 +1104,13 @@ const getResourceActionOptions = (resource) => {
 }
 
 const handleResourceAction = (key, resource) => {
+  if (!resource || !resource.id) {
+    message.error('资源信息缺失，无法操作')
+    return
+  }
   switch (key) {
     case 'view':
-      viewResourceDetail(resource)
+      previewResource(resource)
       break
     case 'edit':
       message.info('编辑功能开发中')
@@ -958,9 +1132,13 @@ const handleResourceAction = (key, resource) => {
 }
 
 const deleteResource = (resource) => {
+  if (!resource || !resource.id) {
+    message.error('资源信息缺失，无法删除')
+    return
+  }
   dialog.warning({
     title: '删除确认',
-    content: `确定要删除资源"${resource.title}"吗？此操作不可恢复。`,
+    content: `确定要删除资源"${resource.title || resource.id}"吗？此操作不可恢复。`,
     positiveText: '删除',
     negativeText: '取消',
     onPositiveClick: async () => {
@@ -992,11 +1170,11 @@ onMounted(() => {
 }
 
 .page-header {
-  background: linear-gradient(135deg, #f5222d 0%, #ff7875 100%);
-  color: white;
+  background: white;
   padding: 24px;
   border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(245, 34, 45, 0.2);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  margin-bottom: 16px;
 }
 
 .header-content {
@@ -1009,12 +1187,13 @@ onMounted(() => {
   margin: 0 0 8px 0;
   font-size: 24px;
   font-weight: 600;
+  color: var(--n-text-color);
 }
 
 .title-section p {
   margin: 0;
-  opacity: 0.9;
   font-size: 14px;
+  color: var(--n-text-color-depth-3);
 }
 
 .search-section {
@@ -1023,6 +1202,13 @@ onMounted(() => {
 
 .resources-list {
   flex: 1;
+}
+
+.resources-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 48px 0;
 }
 
 .grid-view {
@@ -1070,6 +1256,67 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.preview-modal :deep(.n-modal-body) {
+  max-height: 80vh;
+  overflow: auto;
+}
+
+.preview-image-wrapper {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  max-height: 70vh;
+  overflow: auto;
+}
+
+.preview-image-full {
+  max-width: 100%;
+  max-height: 70vh;
+  object-fit: contain;
+}
+
+.preview-video-wrapper {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  max-height: 70vh;
+  overflow: auto;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.preview-video-full {
+  max-width: 100%;
+}
+
+.preview-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.preview-info-text {
+  font-size: 13px;
+  color: #555;
+}
+
+.preview-docx-wrapper {
+  max-height: 70vh;
+  overflow: auto;
+  padding: 12px;
+  background: #f7f7f7;
+}
+
+.preview-fallback {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 0;
+  color: #666;
 }
 
 .resource-header {

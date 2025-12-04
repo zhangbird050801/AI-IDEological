@@ -20,4 +20,9 @@ export const PROXY_CONFIG = {
     target: 'http://127.0.0.1:9999',
     changeOrigin: true,
   },
+  // 静态上传文件代理，便于本地预览
+  '/uploads': {
+    target: 'http://127.0.0.1:9999',
+    changeOrigin: true,
+  },
 }

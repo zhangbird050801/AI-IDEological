@@ -762,6 +762,7 @@ const startNewSession = () => {
   currentSessionId.value = ''
   currentStage.value = '准备开始'
   isCompleted.value = false
+  localStorage.removeItem('prompt-assistant-messages')
   message.success('已开始新会话')
 }
 
@@ -1001,11 +1002,41 @@ onMounted(() => {
     console.log('🔧 开发环境：已设置认证token')
   }
 
+  // 从localStorage恢复对话
+  const savedMessages = localStorage.getItem('prompt-assistant-messages')
+  if (savedMessages) {
+    try {
+      messages.value = JSON.parse(savedMessages)
+      if (messages.value.length > 0) {
+        message.info('已恢复上次的对话')
+        // 检查是否已完成
+        const lastMessage = messages.value[messages.value.length - 1]
+        if (lastMessage.finalPrompt) {
+          isCompleted.value = true
+          currentStage.value = '可以继续优化'
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to load saved messages:', e)
+    }
+  }
+
   // 检查是否是从模板页面跳转过来的
   fromTemplatePage.value = localStorage.getItem('from_template_page') === 'true'
 
   fetchTemplateOptions()
 })
+
+// 监听消息变化，自动保存
+watch(
+  messages,
+  (newMessages) => {
+    if (newMessages.length > 0) {
+      localStorage.setItem('prompt-assistant-messages', JSON.stringify(newMessages))
+    }
+  },
+  { deep: true }
+)
 </script>
 
 <style scoped>
@@ -1042,12 +1073,24 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   position: relative;
+  overflow: hidden;
+}
+
+.chat-container :deep(.n-card__content) {
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
 }
 
 .chat-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  padding: 16px;
+  border-bottom: 1px solid var(--n-border-color);
+  flex-shrink: 0;
 }
 
 .assistant-info {
@@ -1078,10 +1121,14 @@ onMounted(() => {
 .messages-container {
   flex: 1;
   overflow-y: auto;
-  padding: 16px 0;
+  overflow-x: hidden;
+  padding: 16px;
   min-height: 0;
   margin-bottom: 0;
   scroll-behavior: smooth;
+  background: var(--n-color);
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .welcome-message {
@@ -1114,25 +1161,32 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  width: 100%;
 }
 
 .message-item {
   display: flex;
   gap: 12px;
-  max-width: 80%;
+  max-width: 85%;
+  width: fit-content;
 }
 
 .user-message {
   align-self: flex-end;
   flex-direction: row-reverse;
+  margin-left: auto;
 }
 
 .assistant-message {
   align-self: flex-start;
+  margin-right: auto;
 }
 
 .message-content {
   flex: 1;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .message-text {
@@ -1142,6 +1196,11 @@ onMounted(() => {
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
   line-height: 1.6;
   word-wrap: break-word;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  white-space: pre-wrap;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .user-message .message-text {
@@ -1224,15 +1283,14 @@ html[data-theme="dark"] .prompt-code-display {
 }
 
 .input-container {
-  padding: 16px 0 0 0;
+  padding: 16px;
   border-top: 1px solid var(--n-border-color);
   background: var(--n-card-color);
-  position: sticky;
-  bottom: 0;
+  flex-shrink: 0;
   z-index: 10;
   backdrop-filter: blur(8px);
-  border-radius: 0 0 8px 8px;
-  margin-top: auto;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 

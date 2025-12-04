@@ -29,26 +29,21 @@ class Settings(BaseSettings):
     TORTOISE_ORM: dict = {
         "connections": {
             # MySQL/MariaDB configuration (默认)
-            "mysql": {
+            "default": {
                 "engine": "tortoise.backends.mysql",
                 "credentials": {
                     "host": "localhost",  # Database host address
                     "port": 3306,  # Database port
                     "user": "root",  # Database username
-                    "password": "root",  # Database password
+                    "password": "12345678",  # Database password
                     "database": "AIdata",  # Database name
                 },
             },
-            # SQLite configuration (备用)
-            # "sqlite": {
-            #     "engine": "tortoise.backends.sqlite",
-            #     "credentials": {"file_path": f"{BASE_DIR}/db.sqlite3"},  # Path to SQLite database file
-            # },
         },
         "apps": {
             "models": {
                 "models": ["app.models", "aerich.models"],
-                "default_connection": "mysql",
+                "default_connection": "default",
             },
         },
         "use_tz": False,  # Whether to use timezone-aware datetimes

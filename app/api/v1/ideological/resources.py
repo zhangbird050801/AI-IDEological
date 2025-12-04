@@ -22,7 +22,7 @@ from app.core.crud import CRUDBase
 
 router = APIRouter()
 
-# 配置文件上传目录
+# 配置文件上传目录（相对项目根）
 UPLOAD_DIR = Path("uploads/teaching_resources")
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -136,15 +136,16 @@ class ResourceService(CRUDBase[TeachingResourceModel, TeachingResourceCreate, Te
         file_size = len(content)
 
         # 构建访问URL
-        file_url = f"/api/v1/ideological/resources/download/{file_uuid}"
+        # 静态可访问的URL（需在 FastAPI 挂载 /uploads）
+        static_file_url = f"/uploads/teaching_resources/{file_name}"
         download_url = f"/api/v1/ideological/resources/download/{file_uuid}"
 
-        # 对于图片，生成预览URL
-        preview_url = file_url if resource_type == "image" else None
+        # 预览URL：图片/PDF/DOCX 直接用静态地址，方便前端内嵌预览
+        preview_url = static_file_url if resource_type in ["image", "document"] else None
 
         return {
             "file_path": str(file_path),
-            "file_url": file_url,
+            "file_url": static_file_url,
             "download_url": download_url,
             "preview_url": preview_url,
             "file_size": file_size,
@@ -237,6 +238,19 @@ async def create_resource(
         file_info["file_path"] if file_info else None
     )
 
+    return TeachingResource.from_orm(resource)
+
+
+@router.post("/json", summary="创建教学资源（JSON，无文件上传）")
+async def create_resource_json(
+    resource_in: TeachingResourceCreate,
+    current_user: User = Depends(AuthControl.is_authed)
+):
+    """
+    允许前端以 JSON 方式创建教学资源（不含文件），避免表单缺少字段导致 422。
+    如需上传文件，请使用表单上传接口。
+    """
+    resource = await resource_service.create_resource(resource_in, current_user.id)
     return TeachingResource.from_orm(resource)
 
 @router.get("/{resource_id}", summary="获取教学资源详情")

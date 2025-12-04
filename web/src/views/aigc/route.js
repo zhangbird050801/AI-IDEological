@@ -10,12 +10,33 @@ export default {
   },
   children: [
     {
+      name: '案例分类',
+      path: 'categories',
+      component: () => import('@/views/courses/categories.vue'),
+      meta: {
+        title: '案例分类',
+        icon: 'material-symbols:category-outline',
+        order: 1,
+      },
+    },
+    {
+      name: '章节管理',
+      path: 'chapters',
+      component: () => import('@/views/courses/index.vue'),
+      meta: {
+        title: '章节管理',
+        icon: 'material-symbols:menu-book',
+        order: 2,
+      },
+    },
+    {
       name: 'AIGCChat',
       path: 'chat',
       component: () => import('@/views/aigc/chat/index.vue'),
       meta: {
         title: 'AIGC对话',
         icon: 'mdi:chat-outline',
+        order: 3,
       },
     },
     {
@@ -25,6 +46,7 @@ export default {
       meta: {
         title: '案例库',
         icon: 'mdi:book-outline',
+        order: 4,
       },
     },
     {
@@ -34,9 +56,10 @@ export default {
       meta: {
         title: '提示词模板',
         icon: 'mdi:file-document-outline',
+        order: 5,
       },
     },
-      {
+    {
       name: 'AIGCPromptAssistant',
       path: 'prompt-assistant',
       component: () => import('@/views/aigc/prompt-assistant/index.vue'),
@@ -44,6 +67,7 @@ export default {
         title: '提示词助手',
         icon: 'mdi:robot-outline',
         keepAlive: false, // 禁用缓存以确保页面刷新
+        order: 6,
       },
     },
     {
@@ -53,6 +77,28 @@ export default {
       meta: {
         title: '教学资源',
         icon: 'mdi:folder-outline',
+        order: 7,
+      },
+    },
+    // 隐藏的子路由 - 用于章节详情和知识点管理
+    {
+      name: '章节详情',
+      path: 'chapters/:courseId',
+      component: () => import('@/views/courses/chapters.vue'),
+      meta: {
+        title: '章节详情',
+        icon: 'material-symbols:menu-book',
+        hidden: true, // 隐藏在菜单中
+      },
+    },
+    {
+      name: '知识点管理',
+      path: 'knowledge-points/:courseId',
+      component: () => import('@/views/courses/knowledge-points.vue'),
+      meta: {
+        title: '知识点管理',
+        icon: 'material-symbols:lightbulb-outline',
+        hidden: true, // 隐藏在菜单中
       },
     },
   ],

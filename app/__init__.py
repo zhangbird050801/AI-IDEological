@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 from tortoise import Tortoise
 
 from app.core.exceptions import SettingNotFound
@@ -35,6 +36,9 @@ def create_app() -> FastAPI:
     )
     register_exceptions(app)
     register_routers(app, prefix="/api")
+    # 静态文件：用于预览上传的资源
+    uploads_dir = settings.BASE_DIR + "/uploads"
+    app.mount("/uploads", StaticFiles(directory=uploads_dir), name="uploads")
     return app
 
 

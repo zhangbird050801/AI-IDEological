@@ -63,6 +63,52 @@
             </template>
           </n-card>
 
+          <n-card title="上下文配置" size="small" style="margin-top: 16px">
+            <n-space vertical>
+              <n-select
+                v-model:value="selectedTemplateId"
+                :options="templateOptions"
+                placeholder="选择提示词模板"
+                clearable
+                filterable
+                size="small"
+                @update:value="applyPromptPreset"
+              />
+              <n-select
+                v-model:value="selectedChapterId"
+                :options="chapterOptionsRich.map(c => ({ label: c.label, value: c.value }))"
+                placeholder="选择章节（自动填简介）"
+                clearable
+                filterable
+                size="small"
+                @update:value="applyPromptPreset"
+              />
+              <n-select
+                v-model:value="selectedTheme"
+                :options="themeOptions"
+                placeholder="选择思政主题"
+                clearable
+                filterable
+                size="small"
+                @update:value="applyPromptPreset"
+              />
+              <n-select
+                v-model:value="selectedCaseType"
+                :options="caseTypeOptions"
+                placeholder="选择案例类型"
+                clearable
+                size="small"
+                @update:value="applyPromptPreset"
+              />
+              <n-button size="small" block @click="applyPromptPreset">
+                <template #icon>
+                  <n-icon><Icon icon="ant-design:edit-outlined" /></n-icon>
+                </template>
+                套用模板到输入框
+              </n-button>
+            </n-space>
+          </n-card>
+
           <n-card title="快捷操作" size="small" style="margin-top: 16px">
             <n-space vertical>
               <n-button size="small" block @click="showCaseLibrary">
@@ -76,7 +122,7 @@
                 <template #icon
                   ><n-icon><Icon icon="ant-design:book-outlined" /></n-icon
                 ></template>
-                提示词模板
+                随机加载模板
               </n-button>
 
               <n-button size="small" block @click="exportCurrentChat">
@@ -193,6 +239,8 @@ import ChatContainer from '@/components/chat/ChatContainer.vue'
 import ChatInput from '@/components/chat/ChatInput.vue'
 import { chatAPI, chatStream } from '@/api/aigc'
 import { request } from '@/utils/http'
+import api from '@/api'
+import { templatesApi } from '@/api/ideological'
 
 // 响应式数据
 const message = useMessage()
@@ -212,6 +260,15 @@ const usageTime = ref(0)
 
 // 聊天历史
 const chatHistory = ref([])
+
+// 侧栏选择
+const templateOptions = ref([])
+const selectedTemplateId = ref(null)
+const chapterOptionsRich = ref([])
+const selectedChapterId = ref(null)
+const chapterMap = ref({})
+const selectedTheme = ref(null)
+const selectedCaseType = ref(null)
 
 // 保存案例相关
 const saveCaseVisible = ref(false)
@@ -481,6 +538,7 @@ async function confirmSaveCase() {
 function handleClearHistory() {
   messages.value = []
   currentSessionId.value = null
+  localStorage.removeItem('aigc-chat-current-messages')
 }
 
 // 保存到历史记录
@@ -542,7 +600,15 @@ function showCaseLibrary() {
 
 // 显示提示词模板
 function showPromptTemplates() {
-  message.info('提示词模板功能开发中')
+  if (templateOptions.value.length === 0) {
+    message.warning('暂无可用的提示词模板')
+    return
+  }
+  // 默认加载第一个模板
+  const first = templateOptions.value[0]
+  selectedTemplateId.value = first.value
+  applyPromptPreset()
+  message.success(`已加载模板: ${first.label}`)
 }
 
 // 导出当前对话
@@ -584,6 +650,56 @@ async function fetchOptions() {
       '法治意识', '科学精神', '人文素养', '家国情怀', '国际视野'
     ].map(item => ({ label: item, value: item }))
   }
+
+  // 课程章节（含描述）从课程管理获取
+  try {
+    const res = await api.getChaptersByCourse(1)
+    const chapters = res?.data || res || []
+    chapterOptionsRich.value = chapters.map((c) => ({
+      label: c.name,
+      value: c.id,
+      desc: c.description,
+    }))
+    chapterMap.value = Object.fromEntries(chapters.map((c) => [c.id, c]))
+  } catch (error) {
+    console.error('获取章节详情失败:', error)
+  }
+
+  // 提示词模板列表
+  try {
+    const res = await templatesApi.getList({ page: 1, size: 50, is_active: true })
+    const data = res?.data || res || {}
+    const items = data.items || data || []
+    templateOptions.value = items.map((t) => ({
+      label: t.name,
+      value: t.id,
+      content: t.template_content || t.content,
+    }))
+  } catch (error) {
+    console.error('获取提示词模板失败:', error)
+    templateOptions.value = []
+  }
+}
+
+function applyPromptPreset() {
+  const template = templateOptions.value.find((t) => t.value === selectedTemplateId.value)
+  const chapter = chapterMap.value[selectedChapterId.value]
+  if (!template) return
+
+  const parts = [template.content || '']
+  if (chapter) {
+    parts.push(`\n章节：${chapter.name}`)
+    if (chapter.description) parts.push(`章节简介：${chapter.description}`)
+  }
+  if (selectedTheme.value) {
+    parts.push(`思政主题：${selectedTheme.value}`)
+  }
+  if (selectedCaseType.value) {
+    const caseLabel = caseTypeOptions.find((c) => c.value === selectedCaseType.value)?.label || selectedCaseType.value
+    parts.push(`案例类型：${caseLabel}`)
+  }
+
+  chatInput.value?.setContent(parts.filter(Boolean).join('\n'))
 }
 
 // 组件挂载时初始化
@@ -603,6 +719,17 @@ onMounted(() => {
       chatHistory.value = JSON.parse(savedHistory)
     } catch (e) {
       console.warn('Failed to load chat history:', e)
+    }
+  }
+
+  // 从localStorage加载当前对话
+  const savedMessages = localStorage.getItem('aigc-chat-current-messages')
+  if (savedMessages) {
+    try {
+      messages.value = JSON.parse(savedMessages)
+      message.info('已恢复上次的对话')
+    } catch (e) {
+      console.warn('Failed to load current messages:', e)
     }
   }
 
@@ -631,6 +758,17 @@ watch(
   chatHistory,
   (newHistory) => {
     localStorage.setItem('aigc-chat-history', JSON.stringify(newHistory))
+  },
+  { deep: true }
+)
+
+// 监听当前消息变化，自动保存
+watch(
+  messages,
+  (newMessages) => {
+    if (newMessages.length > 0) {
+      localStorage.setItem('aigc-chat-current-messages', JSON.stringify(newMessages))
+    }
   },
   { deep: true }
 )

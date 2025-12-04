@@ -53,6 +53,10 @@ class TemplateType(StrEnum):
     CONTENT_OPTIMIZATION = "content_optimization"  # 内容优化
     TEACHING_DESIGN = "teaching_design"  # 教学设计
     KNOWLEDGE_POINT = "knowledge_point"  # 知识点讲解
+    PROJECT_DESIGN = "project_design"  # 项目实践设计
+    KNOWLEDGE_EXPLANATION = "knowledge_explanation"  # 知识点讲解/解析
+    EVALUATION_DESIGN = "evaluation_design"  # 评价与考核设计
+    PRACTICE = "practice"  # 实践/练习类
 
 
 class PromptAssistantSession(StrEnum):

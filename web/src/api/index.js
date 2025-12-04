@@ -1,6 +1,9 @@
 import { request } from '@/utils'
+import * as courseApi from './courses'
+import { casesApi, templatesApi, resourcesApi } from './ideological'
 
-export default {
+// Core system APIs
+const baseApis = {
   login: (data) => request.post('/base/access_token', data, { noNeedToken: true }),
   getUserInfo: () => request.get('/base/userinfo'),
   getUserMenu: () => request.get('/base/usermenu'),
@@ -37,6 +40,13 @@ export default {
   createDept: (data = {}) => request.post('/dept/create', data),
   updateDept: (data = {}) => request.post('/dept/update', data),
   deleteDept: (params = {}) => request.delete('/dept/delete', { params }),
-  // auditlog
-  getAuditLogList: (params = {}) => request.get('/auditlog/list', { params }),
+}
+
+// Merge course/ideological domain APIs so callers can continue using the default export
+export default {
+  ...baseApis,
+  ...courseApi,
+  ...casesApi,
+  ...templatesApi,
+  ...resourcesApi,
 }
