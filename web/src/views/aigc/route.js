@@ -20,6 +20,16 @@ export default {
       },
     },
     {
+      name: 'ThemeCategories',
+      path: 'theme-categories',
+      component: () => import('@/views/aigc/theme-categories/index.vue'),
+      meta: {
+        title: '思政主题分类',
+        icon: 'material-symbols:category-outline',
+        order: 2,
+      },
+    },
+    {
       name: 'AIGCChat',
       path: 'chat',
       component: () => import('@/views/aigc/chat/index.vue'),

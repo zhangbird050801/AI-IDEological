@@ -487,23 +487,24 @@ CREATE TABLE `menu` (
   KEY `idx_menu_path_bf95b2` (`path`) USING BTREE,
   KEY `idx_menu_order_606068` (`order`) USING BTREE,
   KEY `idx_menu_parent__bebd15` (`parent_id`) USING BTREE
-) ENGINE=InnoDB AUTO_INCREMENT=16 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci ROW_FORMAT=DYNAMIC;
+) ENGINE=InnoDB AUTO_INCREMENT=17 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci ROW_FORMAT=DYNAMIC;
 
 -- ----------------------------
 -- Records of menu
 -- ----------------------------
 BEGIN;
-INSERT INTO `menu` (`id`, `created_at`, `updated_at`, `name`, `remark`, `menu_type`, `icon`, `path`, `order`, `parent_id`, `is_hidden`, `component`, `keepalive`, `redirect`) VALUES (1, '2025-11-21 06:34:26.638365', '2025-11-21 06:34:26.638372', '系统管理', NULL, 'catalog', 'carbon:gui-management', '/system', 1, 0, 0, 'Layout', 0, '/system/user');
-INSERT INTO `menu` (`id`, `created_at`, `updated_at`, `name`, `remark`, `menu_type`, `icon`, `path`, `order`, `parent_id`, `is_hidden`, `component`, `keepalive`, `redirect`) VALUES (2, '2025-11-21 06:34:26.638735', '2025-11-21 06:34:26.638739', '用户管理', NULL, 'menu', 'material-symbols:person-outline-rounded', 'user', 1, 1, 0, '/system/user', 0, NULL);
-INSERT INTO `menu` (`id`, `created_at`, `updated_at`, `name`, `remark`, `menu_type`, `icon`, `path`, `order`, `parent_id`, `is_hidden`, `component`, `keepalive`, `redirect`) VALUES (3, '2025-11-21 06:34:26.638750', '2025-11-21 06:34:26.638753', '角色管理', NULL, 'menu', 'carbon:user-role', 'role', 2, 1, 0, '/system/role', 0, NULL);
-INSERT INTO `menu` (`id`, `created_at`, `updated_at`, `name`, `remark`, `menu_type`, `icon`, `path`, `order`, `parent_id`, `is_hidden`, `component`, `keepalive`, `redirect`) VALUES (4, '2025-11-21 06:34:26.639297', '2025-11-21 06:34:26.639303', '课程思政', NULL, 'catalog', 'mdi:school-outline', '/aigc', 2, 0, 0, 'Layout', 0, '/aigc/chat');
-INSERT INTO `menu` (`id`, `created_at`, `updated_at`, `name`, `remark`, `menu_type`, `icon`, `path`, `order`, `parent_id`, `is_hidden`, `component`, `keepalive`, `redirect`) VALUES (5, '2025-11-21 06:34:26.639643', '2025-12-04 16:41:39.509625', 'AIGC对话', NULL, 'menu', 'mdi:chat-outline', 'chat', 3, 4, 0, '/aigc/chat', 0, NULL);
-INSERT INTO `menu` (`id`, `created_at`, `updated_at`, `name`, `remark`, `menu_type`, `icon`, `path`, `order`, `parent_id`, `is_hidden`, `component`, `keepalive`, `redirect`) VALUES (6, '2025-11-21 06:34:26.639657', '2025-12-04 16:41:39.574854', '案例库', NULL, 'menu', 'mdi:book-outline', 'cases', 4, 4, 0, '/aigc/cases', 0, NULL);
-INSERT INTO `menu` (`id`, `created_at`, `updated_at`, `name`, `remark`, `menu_type`, `icon`, `path`, `order`, `parent_id`, `is_hidden`, `component`, `keepalive`, `redirect`) VALUES (7, '2025-11-21 06:34:26.639667', '2025-12-04 16:41:39.595896', '提示词模板', NULL, 'menu', 'mdi:file-document-outline', 'prompts', 5, 4, 0, '/aigc/prompts', 0, NULL);
-INSERT INTO `menu` (`id`, `created_at`, `updated_at`, `name`, `remark`, `menu_type`, `icon`, `path`, `order`, `parent_id`, `is_hidden`, `component`, `keepalive`, `redirect`) VALUES (8, '2025-11-21 06:34:26.639678', '2025-12-04 16:41:39.624674', '教学资源', NULL, 'menu', 'mdi:folder-outline', 'resources', 7, 4, 0, '/aigc/resources', 0, NULL);
-INSERT INTO `menu` (`id`, `created_at`, `updated_at`, `name`, `remark`, `menu_type`, `icon`, `path`, `order`, `parent_id`, `is_hidden`, `component`, `keepalive`, `redirect`) VALUES (9, '2025-11-21 07:36:10.441460', '2025-12-04 16:41:39.610884', '提示词助手', NULL, 'menu', 'mdi:robot-outline', 'prompt-assistant', 6, 4, 0, '/aigc/prompt-assistant', 0, NULL);
-INSERT INTO `menu` (`id`, `created_at`, `updated_at`, `name`, `remark`, `menu_type`, `icon`, `path`, `order`, `parent_id`, `is_hidden`, `component`, `keepalive`, `redirect`) VALUES (13, '2025-12-04 14:45:05.640065', '2025-12-04 16:41:39.637834', '课程管理', NULL, 'catalog', 'material-symbols:school-outline', '/courses', 999, 0, 1, 'Layout', 0, '/courses');
-INSERT INTO `menu` (`id`, `created_at`, `updated_at`, `name`, `remark`, `menu_type`, `icon`, `path`, `order`, `parent_id`, `is_hidden`, `component`, `keepalive`, `redirect`) VALUES (14, '2025-12-04 14:45:05.641428', '2025-12-04 16:41:39.491657', '章节管理', NULL, 'menu', 'material-symbols:menu-book', 'index', 2, 4, 0, '/courses', 0, NULL);
+INSERT INTO `menu` (`id`, `created_at`, `updated_at`, `name`, `menu_type`, `icon`, `path`, `order`, `parent_id`, `is_hidden`, `component`, `keepalive`, `redirect`) VALUES (1, '2025-11-21 06:34:26.638365', '2025-11-21 06:34:26.638372', '系统管理', 'catalog', 'carbon:gui-management', '/system', 1, 0, 0, 'Layout', 0, '/system/user');
+INSERT INTO `menu` (`id`, `created_at`, `updated_at`, `name`, `menu_type`, `icon`, `path`, `order`, `parent_id`, `is_hidden`, `component`, `keepalive`, `redirect`) VALUES (2, '2025-11-21 06:34:26.638735', '2025-11-21 06:34:26.638739', '用户管理', 'menu', 'material-symbols:person-outline-rounded', 'user', 1, 1, 0, '/system/user', 0, NULL);
+INSERT INTO `menu` (`id`, `created_at`, `updated_at`, `name`, `menu_type`, `icon`, `path`, `order`, `parent_id`, `is_hidden`, `component`, `keepalive`, `redirect`) VALUES (3, '2025-11-21 06:34:26.638750', '2025-11-21 06:34:26.638753', '角色管理', 'menu', 'carbon:user-role', 'role', 2, 1, 0, '/system/role', 0, NULL);
+INSERT INTO `menu` (`id`, `created_at`, `updated_at`, `name`, `menu_type`, `icon`, `path`, `order`, `parent_id`, `is_hidden`, `component`, `keepalive`, `redirect`) VALUES (4, '2025-11-21 06:34:26.639297', '2025-11-21 06:34:26.639303', '课程思政', 'catalog', 'mdi:school-outline', '/aigc', 2, 0, 0, 'Layout', 0, '/aigc/chat');
+INSERT INTO `menu` (`id`, `created_at`, `updated_at`, `name`, `menu_type`, `icon`, `path`, `order`, `parent_id`, `is_hidden`, `component`, `keepalive`, `redirect`) VALUES (5, '2025-11-21 06:34:26.639643', '2025-12-04 16:41:39.509625', 'AIGC对话', 'menu', 'mdi:chat-outline', 'chat', 3, 4, 0, '/aigc/chat', 0, NULL);
+INSERT INTO `menu` (`id`, `created_at`, `updated_at`, `name`, `menu_type`, `icon`, `path`, `order`, `parent_id`, `is_hidden`, `component`, `keepalive`, `redirect`) VALUES (6, '2025-11-21 06:34:26.639657', '2025-12-04 16:41:39.574854', '案例库', 'menu', 'mdi:book-outline', 'cases', 4, 4, 0, '/aigc/cases', 0, NULL);
+INSERT INTO `menu` (`id`, `created_at`, `updated_at`, `name`, `menu_type`, `icon`, `path`, `order`, `parent_id`, `is_hidden`, `component`, `keepalive`, `redirect`) VALUES (7, '2025-11-21 06:34:26.639667', '2025-12-04 16:41:39.595896', '提示词模板', 'menu', 'mdi:file-document-outline', 'prompts', 5, 4, 0, '/aigc/prompts', 0, NULL);
+INSERT INTO `menu` (`id`, `created_at`, `updated_at`, `name`, `menu_type`, `icon`, `path`, `order`, `parent_id`, `is_hidden`, `component`, `keepalive`, `redirect`) VALUES (8, '2025-11-21 06:34:26.639678', '2025-12-04 16:41:39.624674', '教学资源', 'menu', 'mdi:folder-outline', 'resources', 7, 4, 0, '/aigc/resources', 0, NULL);
+INSERT INTO `menu` (`id`, `created_at`, `updated_at`, `name`, `menu_type`, `icon`, `path`, `order`, `parent_id`, `is_hidden`, `component`, `keepalive`, `redirect`) VALUES (9, '2025-11-21 07:36:10.441460', '2025-12-04 16:41:39.610884', '提示词助手', 'menu', 'mdi:robot-outline', 'prompt-assistant', 6, 4, 0, '/aigc/prompt-assistant', 0, NULL);
+INSERT INTO `menu` (`id`, `created_at`, `updated_at`, `name`, `menu_type`, `icon`, `path`, `order`, `parent_id`, `is_hidden`, `component`, `keepalive`, `redirect`) VALUES (13, '2025-12-04 14:45:05.640065', '2025-12-04 16:41:39.637834', '课程管理', 'catalog', 'material-symbols:school-outline', '/courses', 999, 0, 1, 'Layout', 0, '/courses');
+INSERT INTO `menu` (`id`, `created_at`, `updated_at`, `name`, `menu_type`, `icon`, `path`, `order`, `parent_id`, `is_hidden`, `component`, `keepalive`, `redirect`) VALUES (14, '2025-12-04 14:45:05.641428', '2025-12-04 16:41:39.491657', '章节管理', 'menu', 'material-symbols:menu-book', 'index', 2, 4, 0, '/courses', 0, NULL);
+INSERT INTO `menu` (`id`, `created_at`, `updated_at`, `name`, `menu_type`, `icon`, `path`, `order`, `parent_id`, `is_hidden`, `component`, `keepalive`, `redirect`) VALUES (16, '2025-12-05 11:35:00.000000', '2025-12-05 11:35:00.000000', '思政主题分类', 'menu', 'mdi:tag-multiple-outline', 'theme-categories', 8, 4, 0, '/aigc/theme-categories', 0, NULL);
 COMMIT;
 
 -- ----------------------------
@@ -749,6 +750,8 @@ INSERT INTO `role_menu` (`role_id`, `menu_id`) VALUES (1, 13);
 INSERT INTO `role_menu` (`role_id`, `menu_id`) VALUES (2, 13);
 INSERT INTO `role_menu` (`role_id`, `menu_id`) VALUES (1, 14);
 INSERT INTO `role_menu` (`role_id`, `menu_id`) VALUES (2, 14);
+INSERT INTO `role_menu` (`role_id`, `menu_id`) VALUES (1, 16);
+INSERT INTO `role_menu` (`role_id`, `menu_id`) VALUES (2, 16);
 COMMIT;
 
 -- ----------------------------
@@ -910,6 +913,55 @@ CREATE TABLE `user_role` (
 -- Records of user_role
 -- ----------------------------
 BEGIN;
+COMMIT;
+
+-- ----------------------------
+-- Table structure for ideological_theme_categories
+-- ----------------------------
+DROP TABLE IF EXISTS `ideological_theme_categories`;
+CREATE TABLE `ideological_theme_categories` (
+  `id` int NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `name` varchar(100) NOT NULL COMMENT '分类名称',
+  `description` text COMMENT '分类描述',
+  `parent_id` int DEFAULT NULL COMMENT '父分类ID',
+  `order` int NOT NULL DEFAULT '0' COMMENT '排序',
+  `is_active` tinyint(1) NOT NULL DEFAULT '1' COMMENT '是否启用',
+  `created_at` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) COMMENT '创建时间',
+  `updated_at` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6) COMMENT '更新时间',
+  PRIMARY KEY (`id`),
+  KEY `idx_name` (`name`),
+  KEY `idx_parent_id` (`parent_id`),
+  KEY `idx_order` (`order`),
+  KEY `idx_is_active` (`is_active`)
+) ENGINE=InnoDB AUTO_INCREMENT=15 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='思政主题分类表';
+
+-- ----------------------------
+-- Records of ideological_theme_categories
+-- ----------------------------
+BEGIN;
+-- 一级分类：四大教育目标
+INSERT INTO `ideological_theme_categories` (`id`, `name`, `description`, `parent_id`, `order`, `is_active`) VALUES
+(1, '专业能力', '培养学生扎实的专业技能和严谨的工作态度', NULL, 1, 1),
+(2, '职业道德', '培养学生的职业操守和道德规范意识', NULL, 2, 1),
+(3, '社会责任', '培养学生的社会责任感和团队协作精神', NULL, 3, 1),
+(4, '综合素养', '培养学生的人文素养和国际化视野', NULL, 4, 1);
+
+-- 二级分类：具体思政主题
+INSERT INTO `ideological_theme_categories` (`id`, `name`, `description`, `parent_id`, `order`, `is_active`) VALUES
+-- 专业能力子类
+(5, '工匠精神', '培养学生精益求精的工匠精神，追求卓越的职业态度', 1, 1, 1),
+(6, '创新精神', '培养学生的创新意识和创新能力，鼓励技术创新', 1, 2, 1),
+(7, '科学精神', '培养学生的科学思维和求真精神，严谨对待技术问题', 1, 3, 1),
+-- 职业道德子类
+(8, '诚信品质', '培养学生的诚信意识和良好品质，坚守职业道德底线', 2, 1, 1),
+(9, '责任担当', '培养学生的责任意识，认识到技术对社会的影响', 2, 2, 1),
+(10, '法治意识', '增强学生的法治观念和法律意识，遵守行业规范', 2, 3, 1),
+-- 社会责任子类
+(11, '团队协作', '培养学生的团队协作能力，学会在团队中发挥作用', 3, 1, 1),
+(12, '家国情怀', '培养学生的爱国情怀和民族自豪感，服务国家发展', 3, 2, 1),
+-- 综合素养子类
+(13, '人文素养', '培养学生的人文关怀，以用户为中心的思维', 4, 1, 1),
+(14, '国际视野', '培养学生的国际视野和跨文化交流能力，面向全球发展', 4, 2, 1);
 COMMIT;
 
 SET FOREIGN_KEY_CHECKS = 1;

@@ -4,3 +4,4 @@ from .ideological import *
 from .course import Course
 from .chapter import Chapter
 from .knowledge_point import KnowledgePoint
+from .theme_category import IdeologicalThemeCategory

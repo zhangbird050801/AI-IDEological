@@ -347,7 +347,7 @@ import {
 import { Icon } from '@iconify/vue'
 import AppPage from '@/components/page/AppPage.vue'
 import { request } from '@/utils/http'
-import { templatesApi, casesApi } from '@/api/ideological'
+import { templatesApi, casesApi, themeCategoriesApi } from '@/api/ideological'
 
 // 响应式数据
 const message = useMessage()
@@ -466,16 +466,16 @@ const fetchOptions = async () => {
       ].map(item => ({ label: item, value: item }))
     }
 
-    // 获取主题选项
+    // 获取主题选项（从数据库读取）
     try {
-      const themesResponse = await templatesApi.getThemes()
-      const themesData = Array.isArray(themesResponse.data) ? themesResponse.data : (themesResponse?.data || themesResponse || [])
-      themeOptions.value = themesData.map(item => ({
+      const themesResponse = await themeCategoriesApi.getNames()
+      themeOptions.value = themesResponse.map(item => ({
         label: item,
         value: item,
       }))
     } catch (error) {
-      // 使用默认主题数据
+      console.error('获取思政主题失败:', error)
+      // 使用默认主题数据作为fallback
       themeOptions.value = [
         "工匠精神", "创新精神", "团队协作", "责任担当", "诚信品质",
         "法治意识", "科学精神", "人文素养", "家国情怀", "国际视野"

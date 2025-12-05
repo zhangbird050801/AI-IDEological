@@ -240,7 +240,7 @@ import ChatInput from '@/components/chat/ChatInput.vue'
 import { chatAPI, chatStream } from '@/api/aigc'
 import { request } from '@/utils/http'
 import api from '@/api'
-import { templatesApi } from '@/api/ideological'
+import { templatesApi, themeCategoriesApi } from '@/api/ideological'
 
 // 响应式数据
 const message = useMessage()
@@ -638,10 +638,10 @@ async function fetchOptions() {
   }
   
   try {
-    const themesResponse = await request.get('/ideological/templates/themes/list')
-    themeOptions.value = (themesResponse.data || themesResponse || []).map(item => ({
+    const response = await themeCategoriesApi.getNames()
+    themeOptions.value = response.map(item => ({
       label: item,
-      value: item
+      value: item,
     }))
   } catch (error) {
     console.error('获取主题选项失败:', error)

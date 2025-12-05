@@ -89,3 +89,23 @@ export const resourcesApi = {
   // 获取思政主题列表
   getThemes: () => request.get('/ideological/resources/themes/list'),
 }
+
+// 思政主题分类相关API
+export const themeCategoriesApi = {
+  // 获取分类树
+  getTree: () => request.get('/ideological/theme-categories/tree'),
+  // 获取分类列表（扁平）
+  getList: () => request.get('/ideological/theme-categories/list'),
+  // 获取主题名称列表（用于选择器）
+  getNames: () => request.get('/ideological/theme-categories/names', { params: { _t: Date.now() } }),
+  // 获取分类详情
+  getById: (id) => request.get(`/ideological/theme-categories/${id}`),
+  // 创建分类
+  create: (data = {}) => request.post('/ideological/theme-categories', data),
+  // 更新分类
+  update: (id, data = {}) => request.put(`/ideological/theme-categories/${id}`, data),
+  // 删除分类
+  delete: (id) => request.delete(`/ideological/theme-categories/${id}`),
+  // 移动分类（拖拽）
+  move: (id, data = {}) => request.post(`/ideological/theme-categories/${id}/move`, {}, { params: data }),
+}
