@@ -40,9 +40,15 @@
         </div>
 
         <div class="sidebar">
-          <n-card title="生成历史" size="small">
+          <n-card title="📜 生成历史" size="small">
             <div v-if="chatHistory.length === 0" class="empty-history">
-              <n-empty size="small" description="暂无历史记录" />
+              <n-empty size="small" description="暂无历史记录">
+                <template #icon>
+                  <n-icon size="48">
+                    <Icon icon="ant-design:file-text-outlined" />
+                  </n-icon>
+                </template>
+              </n-empty>
             </div>
 
             <div v-else class="history-list">
@@ -59,12 +65,14 @@
             </div>
 
             <template #action>
-              <n-button size="small" text @click="showAllHistory"> 查看全部 </n-button>
+              <n-button size="small" text type="primary" @click="showAllHistory">
+                查看全部 →
+              </n-button>
             </template>
           </n-card>
 
-          <n-card title="上下文配置" size="small" style="margin-top: 16px">
-            <n-space vertical>
+          <n-card title="⚙️ 上下文配置" size="small">
+            <n-space vertical :size="8">
               <n-select
                 v-model:value="selectedTemplateId"
                 :options="templateOptions"
@@ -77,7 +85,7 @@
               <n-select
                 v-model:value="selectedChapterId"
                 :options="chapterOptionsRich.map(c => ({ label: c.label, value: c.value }))"
-                placeholder="选择章节（自动填简介）"
+                placeholder="选择章节"
                 clearable
                 filterable
                 size="small"
@@ -100,35 +108,27 @@
                 size="small"
                 @update:value="applyPromptPreset"
               />
-              <n-button size="small" block @click="applyPromptPreset">
+              <n-button size="small" block type="primary" @click="applyPromptPreset">
                 <template #icon>
                   <n-icon><Icon icon="ant-design:edit-outlined" /></n-icon>
                 </template>
-                套用模板到输入框
+                套用模板
               </n-button>
             </n-space>
           </n-card>
 
-          <n-card title="快捷操作" size="small" style="margin-top: 16px">
-            <n-space vertical>
-              <n-button size="small" block @click="showCaseLibrary">
-                <template #icon
-                  ><n-icon><Icon icon="ant-design:library-outlined" /></n-icon
-                ></template>
+          <n-card title="⚡ 快捷操作" size="small">
+            <n-space vertical :size="6">
+              <n-button size="small" block secondary @click="showCaseLibrary">
+                <template #icon><n-icon><Icon icon="ant-design:library-outlined" /></n-icon></template>
                 案例库
               </n-button>
-
-              <n-button size="small" block @click="showPromptTemplates">
-                <template #icon
-                  ><n-icon><Icon icon="ant-design:book-outlined" /></n-icon
-                ></template>
+              <n-button size="small" block secondary @click="showPromptTemplates">
+                <template #icon><n-icon><Icon icon="ant-design:book-outlined" /></n-icon></template>
                 随机加载模板
               </n-button>
-
-              <n-button size="small" block @click="exportCurrentChat">
-                <template #icon
-                  ><n-icon><Icon icon="ant-design:export-outlined" /></n-icon
-                ></template>
+              <n-button size="small" block secondary @click="exportCurrentChat">
+                <template #icon><n-icon><Icon icon="ant-design:export-outlined" /></n-icon></template>
                 导出对话
               </n-button>
             </n-space>
@@ -141,75 +141,93 @@
     <n-modal
       v-model:show="saveCaseVisible"
       preset="dialog"
-      title="保存为案例"
+      title="💾 保存为案例"
       positive-text="保存"
       negative-text="取消"
       @positive-click="confirmSaveCase"
-      style="width: 700px"
+      :style="{
+        width: '900px',
+        maxWidth: '92vw'
+      }"
+      class="save-case-modal"
     >
-      <n-form :model="caseForm" label-placement="left" label-width="140px">
-        <n-form-item label="案例标题" required>
-          <n-input v-model:value="caseForm.title" placeholder="请输入案例标题" />
-        </n-form-item>
-        
-        <n-form-item label="软件工程章节" required>
-          <n-select
-            v-model:value="caseForm.software_engineering_chapter"
-            :options="chapterOptions"
-            placeholder="请选择章节"
-            filterable
-          />
-        </n-form-item>
-        
-        <n-form-item label="思政主题" required>
-          <n-select
-            v-model:value="caseForm.ideological_theme"
-            :options="themeOptions"
-            placeholder="请选择思政主题"
-            filterable
-          />
-        </n-form-item>
-        
-        <n-form-item label="案例类型" required>
-          <n-select
-            v-model:value="caseForm.case_type"
-            :options="caseTypeOptions"
-            placeholder="请选择案例类型"
-          />
-        </n-form-item>
-        
-        <n-form-item label="难度等级">
-          <n-input-number
-            v-model:value="caseForm.difficulty_level"
-            :min="1"
-            :max="5"
-            style="width: 100%"
-          >
-            <template #suffix>级</template>
-          </n-input-number>
-        </n-form-item>
-        
-        <n-form-item label="标签">
-          <n-dynamic-tags v-model:value="caseForm.tags" />
-        </n-form-item>
-        
-        <n-form-item label="关键知识点">
-          <n-dynamic-tags v-model:value="caseForm.key_points" />
-        </n-form-item>
-        
-        <n-form-item label="讨论问题">
-          <n-dynamic-tags v-model:value="caseForm.discussion_questions" />
-        </n-form-item>
-        
-        <n-form-item label="教学建议">
-          <n-input
-            v-model:value="caseForm.teaching_suggestions"
-            type="textarea"
-            placeholder="请输入教学建议"
-            :autosize="{ minRows: 3, maxRows: 6 }"
-          />
-        </n-form-item>
-      </n-form>
+      <n-spin :show="extractingCaseFields">
+        <n-form class="case-form-wrap" :model="caseForm" label-placement="top" label-width="auto">
+          <n-form-item label="案例标题" required>
+            <n-input v-model:value="caseForm.title" placeholder="请输入案例标题" />
+          </n-form-item>
+          
+          <n-grid :cols="2" :x-gap="16">
+            <n-gi>
+              <n-form-item label="软件工程章节" required>
+                <n-select
+                  v-model:value="caseForm.software_engineering_chapter"
+                  :options="chapterOptions"
+                  placeholder="请选择章节"
+                  filterable
+                />
+              </n-form-item>
+            </n-gi>
+            
+            <n-gi>
+              <n-form-item label="思政主题" required>
+                <n-select
+                  v-model:value="caseForm.ideological_theme"
+                  :options="themeOptions"
+                  placeholder="请选择思政主题"
+                  filterable
+                />
+              </n-form-item>
+            </n-gi>
+          </n-grid>
+          
+          <n-grid :cols="2" :x-gap="16">
+            <n-gi>
+              <n-form-item label="案例类型" required>
+                <n-select
+                  v-model:value="caseForm.case_type"
+                  :options="caseTypeOptions"
+                  placeholder="请选择案例类型"
+                />
+              </n-form-item>
+            </n-gi>
+            
+            <n-gi>
+              <n-form-item label="难度等级">
+                <n-input-number
+                  v-model:value="caseForm.difficulty_level"
+                  :min="1"
+                  :max="5"
+                  style="width: 100%"
+                >
+                  <template #suffix>级</template>
+                </n-input-number>
+              </n-form-item>
+            </n-gi>
+          </n-grid>
+          
+          <n-form-item label="标签">
+            <n-dynamic-tags v-model:value="caseForm.tags" />
+          </n-form-item>
+          
+          <n-form-item label="关键知识点">
+            <n-dynamic-tags v-model:value="caseForm.key_points" />
+          </n-form-item>
+          
+          <n-form-item label="讨论问题">
+            <n-dynamic-tags v-model:value="caseForm.discussion_questions" />
+          </n-form-item>
+          
+          <n-form-item label="教学建议">
+            <n-input
+              v-model:value="caseForm.teaching_suggestions"
+              type="textarea"
+              placeholder="请输入教学建议"
+              :autosize="{ minRows: 4, maxRows: 10 }"
+            />
+          </n-form-item>
+        </n-form>
+      </n-spin>
     </n-modal>
   </AppPage>
 </template>
@@ -230,6 +248,8 @@ import {
   NSelect,
   NInputNumber,
   NDynamicTags,
+  NGrid,
+  NGi,
   useMessage,
   useLoadingBar,
 } from 'naive-ui'
@@ -269,6 +289,7 @@ const selectedChapterId = ref(null)
 const chapterMap = ref({})
 const selectedTheme = ref(null)
 const selectedCaseType = ref(null)
+const extractingCaseFields = ref(false)
 
 // 保存案例相关
 const saveCaseVisible = ref(false)
@@ -461,7 +482,7 @@ async function saveGenerationHistory(userInput, generatedContent, messageObj) {
 }
 
 // 保存案例
-function handleSaveCase(messageObj) {
+async function handleSaveCase(messageObj) {
   // 检查消息是否有内容
   if (!messageObj.content || messageObj.content.trim() === '') {
     message.error('消息内容为空，无法保存为案例')
@@ -482,12 +503,193 @@ function handleSaveCase(messageObj) {
     teaching_suggestions: '',
     difficulty_level: 3,
   })
-  
+
   // 自动提取标题（取内容前50个字符）
   const titleText = messageObj.content.substring(0, 50).replace(/\n/g, ' ')
   caseForm.title = titleText + (messageObj.content.length > 50 ? '...' : '')
-  
+
+  // 先展示弹窗，再异步填充字段（AI优先，正则兜底）
   saveCaseVisible.value = true
+  extractingCaseFields.value = true
+  autoFillCaseForm(messageObj.content || '')
+    .catch((err) => console.error('自动填充案例字段失败:', err))
+    .finally(() => {
+      extractingCaseFields.value = false
+    })
+}
+
+async function autoFillCaseForm(content) {
+  const normalized = content.replace(/\r\n/g, '\n')
+
+  const matchField = (labels) => {
+    for (const label of labels) {
+      const reg = new RegExp(`${label}\\s*[:：]\\s*([^\\n]+)`, 'i')
+      const m = normalized.match(reg)
+      if (m && m[1]) return m[1].trim()
+    }
+    return ''
+  }
+
+  // 先用本地解析兜底
+  const extracted = autoExtractCaseMetadata(content || '')
+
+  const explicitTitle = matchField(['案例标题', '标题', '案例名称'])
+  if (explicitTitle) caseForm.title = explicitTitle
+
+  const chapter = matchField(['软件工程章节', '章节'])
+  if (chapter) caseForm.software_engineering_chapter = chapter
+
+  const theme = matchField(['思政主题', '主题'])
+  if (theme) caseForm.ideological_theme = theme
+
+  const type = matchField(['案例类型'])
+  if (type) caseForm.case_type = type
+
+  const level = matchField(['难度等级', '难度'])
+  if (level) {
+    const levelNum = parseInt(level, 10)
+    if (!isNaN(levelNum)) caseForm.difficulty_level = levelNum
+  }
+
+  if (extracted.tags.length) caseForm.tags = extracted.tags
+  if (extracted.keyPoints.length) caseForm.key_points = extracted.keyPoints
+  if (extracted.discussionQuestions.length) caseForm.discussion_questions = extracted.discussionQuestions
+
+  const teachingMatch = normalized.match(/教学建议\s*[:：]?\s*([\s\S]*?)(\n\s*\n|$)/i)
+  if (teachingMatch && teachingMatch[1].trim()) {
+    caseForm.teaching_suggestions = teachingMatch[1].trim()
+  }
+
+  // 再尝试 AI 结构化提取，成功则覆盖（用户可修改）
+  const aiData = await aiExtractCaseMetadata(content)
+  if (aiData) {
+    caseForm.title = aiData.title || caseForm.title
+    caseForm.software_engineering_chapter =
+      aiData.software_engineering_chapter || aiData.chapter || caseForm.software_engineering_chapter
+    caseForm.ideological_theme = aiData.ideological_theme || aiData.theme || caseForm.ideological_theme
+    caseForm.case_type = aiData.case_type || caseForm.case_type
+    if (aiData.difficulty_level) caseForm.difficulty_level = aiData.difficulty_level
+    if (Array.isArray(aiData.tags) && aiData.tags.length) caseForm.tags = aiData.tags
+    if (Array.isArray(aiData.key_points) && aiData.key_points.length) caseForm.key_points = aiData.key_points
+    if (Array.isArray(aiData.discussion_questions) && aiData.discussion_questions.length) {
+      caseForm.discussion_questions = aiData.discussion_questions
+    }
+    if (aiData.teaching_suggestions) caseForm.teaching_suggestions = aiData.teaching_suggestions
+  }
+}
+
+function autoExtractCaseMetadata(content) {
+  // 预清洗，统一分隔符
+  const normalized = content
+    .replace(/\r\n/g, '\n')
+    .replace(/：/g, ':')
+    .replace(/。/g, '。\n') // 句号后换行，方便分块
+
+  const cleanListItems = (block) =>
+    block
+      .split('\n')
+      .map((line) => line.replace(/^[\s>*\-•·\d\)\.]+\s*/, '').trim())
+      .filter(Boolean)
+      .slice(0, 8)
+
+  const extractListByHeading = (headings) => {
+    for (const heading of headings) {
+      const reg = new RegExp(`${heading}\\s*[:：]?\\s*([\\s\\S]*?)(\\n\\s*\\n|$)`, 'i')
+      const match = normalized.match(reg)
+      if (match && match[1]) {
+        const items = cleanListItems(match[1])
+        if (items.length) return items
+      }
+    }
+
+    const lines = normalized.split('\n')
+    for (let i = 0; i < lines.length; i++) {
+      if (headings.some((h) => lines[i].includes(h))) {
+        const block = lines.slice(i + 1, i + 6).join('\n')
+        const items = cleanListItems(block)
+        if (items.length) return items
+      }
+    }
+
+    // 回退：尝试从 markdown 子标题中提取
+    for (let i = 0; i < lines.length; i++) {
+      if (/^#+\s*/.test(lines[i]) && headings.some((h) => lines[i].includes(h))) {
+        const block = lines.slice(i + 1, i + 6).join('\n')
+        const items = cleanListItems(block)
+        if (items.length) return items
+      }
+    }
+    return []
+  }
+
+  const extractTags = () => {
+    const tagMatch =
+      normalized.match(/标签[:：]\s*([^\n]+)/i) ||
+      normalized.match(/关键词[:：]\s*([^\n]+)/i) ||
+      normalized.match(/关键标签[:：]\s*([^\n]+)/i)
+    if (tagMatch) {
+      return [...new Set(tagMatch[1].split(/[、，,;；\s]+/).map((t) => t.trim()).filter(Boolean))].slice(0, 8)
+    }
+
+    // 回退：基于常见关键词快速抓取
+    const candidates = []
+    ;['主题', '价值', '知识点', '技术'].forEach((key) => {
+      const m = normalized.match(new RegExp(`${key}[:：]\\s*([^\\n]+)`, 'i'))
+      if (m && m[1]) {
+        candidates.push(...m[1].split(/[、，,;；\s]+/))
+      }
+    })
+    return [...new Set(candidates.map((t) => t.trim()).filter(Boolean))].slice(0, 8)
+  }
+
+  return {
+    discussionQuestions: extractListByHeading([
+      '讨论思考',
+      '讨论问题',
+      '讨论题',
+      '思考题',
+      '讨论',
+      '课堂讨论',
+    ]),
+    keyPoints: extractListByHeading(['关键知识点', '知识点', '要点', '学习要点', '核心技术内容']),
+    tags: extractTags(),
+  }
+}
+
+async function aiExtractCaseMetadata(content) {
+  if (!content || content.trim().length === 0) return null
+  try {
+    const systemPrompt =
+      '你是一名教学案例助理。请严格输出 JSON，不要包含说明文字。字段：title, software_engineering_chapter, ideological_theme, case_type, difficulty_level (整数), tags(array), key_points(array), discussion_questions(array), teaching_suggestions(string)。确保 JSON 可被直接解析。'
+    const userPrompt = `请从下面的思政教学案例文本中提取结构化字段，按字段输出 JSON。文本如下：\n${content}`
+    const res = await chatAPI([
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt },
+    ])
+    const reply =
+      res?.reply ||
+      res?.data?.reply ||
+      res?.data?.choices?.[0]?.message?.content ||
+      res?.choices?.[0]?.message?.content ||
+      ''
+    if (!reply) return null
+    const jsonText = extractJson(reply)
+    return JSON.parse(jsonText)
+  } catch (err) {
+    console.warn('AI 提取案例字段失败，使用兜底解析', err)
+    return null
+  }
+}
+
+function extractJson(text) {
+  // 如果本身就是 JSON
+  const trimmed = text.trim()
+  if (trimmed.startsWith('{') && trimmed.endsWith('}')) return trimmed
+  // 尝试从代码块中提取
+  const codeBlockMatch = text.match(/```json\s*([\s\S]*?)```/i) || text.match(/```([\s\S]*?)```/)
+  if (codeBlockMatch) return codeBlockMatch[1]
+  // 兜底返回原文
+  return text
 }
 
 // 确认保存案例
@@ -639,7 +841,14 @@ async function fetchOptions() {
   
   try {
     const response = await themeCategoriesApi.getNames()
-    themeOptions.value = response.map(item => ({
+    const names = Array.isArray(response)
+      ? response
+      : Array.isArray(response?.data)
+        ? response.data
+        : Array.isArray(response?.items)
+          ? response.items
+          : []
+    themeOptions.value = names.map(item => ({
       label: item,
       value: item,
     }))
@@ -823,7 +1032,7 @@ watch(
 .chat-layout {
   flex: 1;
   display: flex;
-  gap: 24px;
+  gap: 12px;
   min-height: 0;
 }
 
@@ -832,42 +1041,186 @@ watch(
   display: flex;
   flex-direction: column;
   min-height: 0;
+  max-height: calc(100vh - 120px);
+  background: rgba(250, 250, 252, 0.5);
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
 }
 
 .input-section {
-  margin-top: 16px;
+  flex-shrink: 0;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.98);
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.04);
+  min-height: 150px;
 }
 
 .sidebar {
   width: 280px;
   flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sidebar :deep(.n-card) {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  transition: all 0.2s ease;
+}
+
+.sidebar :deep(.n-card:hover) {
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+}
+
+.sidebar :deep(.n-card-header) {
+  padding: 12px 14px;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.sidebar :deep(.n-card__content) {
+  padding: 10px;
+}
+
+.save-case-modal :deep(.n-dialog__title) {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.case-form-wrap {
+  max-height: 65vh;
+  overflow-y: auto;
+  padding: 4px 2px;
+  margin-top: 4px;
+}
+
+.case-form-wrap::-webkit-scrollbar {
+  width: 4px;
+}
+
+.case-form-wrap::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 2px;
+}
+
+.case-form-wrap :deep(.n-form-item) {
+  margin-bottom: 14px;
+}
+
+.case-form-wrap :deep(.n-form-item-label) {
+  font-weight: 500;
+  font-size: 13px;
+  margin-bottom: 6px;
+  color: var(--n-text-color-base);
+}
+
+.case-form-wrap :deep(.n-input),
+.case-form-wrap :deep(.n-select),
+.case-form-wrap :deep(.n-input-number) {
+  border-radius: 4px;
+}
+
+.case-form-wrap :deep(.n-dynamic-tags) {
+  width: 100%;
+  min-height: 70px;
+  padding: 10px;
+  border: 1px dashed rgba(24, 160, 88, 0.25);
+  border-radius: 6px;
+  background: rgba(250, 250, 252, 0.5);
+  transition: all 0.2s ease;
+}
+
+.case-form-wrap :deep(.n-dynamic-tags:hover) {
+  border-color: rgba(24, 160, 88, 0.4);
+  background: rgba(24, 160, 88, 0.03);
+}
+
+.case-form-wrap :deep(.n-dynamic-tags .n-tag) {
+  margin: 3px 5px 3px 0;
+  padding: 5px 10px;
+  font-size: 12px;
+  line-height: 1.5;
+  max-width: 100%;
+  word-break: break-word;
+  white-space: normal;
+  height: auto;
+  min-height: 26px;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 4px;
+  background: rgba(24, 160, 88, 0.08);
+  border: 1px solid rgba(24, 160, 88, 0.15);
+}
+
+.case-form-wrap :deep(.n-dynamic-tags .n-tag .n-tag__content) {
+  white-space: normal;
+  word-break: break-word;
+  line-height: 1.5;
+  flex: 1;
+}
+
+.case-form-wrap :deep(.n-dynamic-tags .n-dynamic-tags-input) {
+  margin: 3px 0;
+  min-width: 120px;
+  border-radius: 4px;
+}
+
+.case-form-wrap :deep(.n-dynamic-tags .n-dynamic-tags-add-button) {
+  margin: 3px 0;
+  border-radius: 4px;
 }
 
 .empty-history {
   text-align: center;
-  padding: 20px 0;
+  padding: 20px 12px;
+  color: var(--n-text-color-depth-3);
+}
+
+.empty-history :deep(.n-empty__icon) {
+  font-size: 40px;
+  margin-bottom: 8px;
 }
 
 .history-list {
   max-height: 300px;
   overflow-y: auto;
+  padding: 2px;
+}
+
+.history-list::-webkit-scrollbar {
+  width: 4px;
+}
+
+.history-list::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 2px;
 }
 
 .history-item {
-  padding: 8px 12px;
+  padding: 8px 10px;
   border-radius: 6px;
   cursor: pointer;
-  transition: background-color 0.2s ease;
+  transition: all 0.2s ease;
   border: 1px solid transparent;
+  margin-bottom: 6px;
+  background: rgba(250, 250, 252, 0.5);
 }
 
 .history-item:hover {
-  background-color: var(--n-color-hover);
+  background-color: rgba(24, 160, 88, 0.05);
+  border-color: rgba(24, 160, 88, 0.15);
 }
 
 .history-item.active {
-  background-color: var(--n-primary-color-suppl);
-  border-color: var(--n-primary-color);
+  background: rgba(24, 160, 88, 0.08);
+  border-color: rgba(24, 160, 88, 0.3);
+}
+
+.history-item.active .history-title {
+  color: var(--n-primary-color);
+  font-weight: 600;
 }
 
 .history-title {
@@ -901,18 +1254,28 @@ watch(
 /* 响应式设计 */
 @media (max-width: 1200px) {
   .sidebar {
-    width: 240px;
+    width: 260px;
+  }
+  
+  .chat-main {
+    padding: 12px;
   }
 }
 
 @media (max-width: 768px) {
   .chat-layout {
     flex-direction: column;
+    gap: 16px;
   }
 
   .sidebar {
     width: 100%;
     order: -1;
+  }
+  
+  .chat-main {
+    height: calc(100vh - 200px);
+    padding: 12px;
   }
 
   .header-content {
@@ -924,5 +1287,39 @@ watch(
   .title-section h1 {
     font-size: 20px;
   }
+  
+  .case-form-wrap {
+    max-height: 60vh;
+  }
+  
+  .save-case-modal :deep(.n-dialog) {
+    margin: 16px;
+  }
+}
+
+
+
+/* 滚动条美化 */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 0, 0, 0.15) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 3px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.25);
 }
 </style>

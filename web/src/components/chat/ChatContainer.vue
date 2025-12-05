@@ -328,7 +328,8 @@ defineExpose({
 .chat-container {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  flex: 1;
+  min-height: 0;
   background: var(--n-color);
   border-radius: 8px;
   overflow: hidden;
@@ -342,25 +343,33 @@ defineExpose({
   background: linear-gradient(135deg, rgba(255, 138, 101, 0.9) 0%, rgba(255, 112, 67, 0.9) 100%);
   color: #ffffff !important;
   box-shadow: 0 2px 8px rgba(255, 138, 101, 0.15);
+  flex-shrink: 0;
 }
 
 .header-title {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
   font-size: 16px;
   font-weight: 500;
   color: #ffffff !important;
+  flex: 1;
+  min-width: 0;
 }
 
 .header-title span {
   color: #ffffff !important;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .messages-container {
   flex: 1;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: 0;
+  min-height: 0;
   scroll-behavior: smooth;
 }
 

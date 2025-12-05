@@ -1,31 +1,6 @@
 <template>
   <AppPage>
     <div class="prompt-assistant-page">
-      <!-- 页面头部 -->
-      <n-card class="page-header" :bordered="false">
-        <div class="header-content">
-          <div class="title-section">
-            <h1>提示词助手</h1>
-          </div>
-          <div class="actions-section">
-            <n-space>
-              <n-button @click="goBackToTemplates" v-if="fromTemplatePage" text>
-                <template #icon>
-                  <n-icon><Icon icon="mdi:arrow-left" /></n-icon>
-                </template>
-                返回模板库
-              </n-button>
-              <n-button @click="startNewSession" type="primary">
-                <template #icon>
-                  <n-icon><Icon icon="mdi:refresh" /></n-icon>
-                </template>
-                清空对话
-              </n-button>
-            </n-space>
-          </div>
-        </div>
-      </n-card>
-
       <!-- 主内容区 -->
       <n-grid :cols="1" :x-gap="16" class="main-content">
         <!-- 聊天界面 -->
@@ -43,10 +18,11 @@
                   </div>
                 </div>
                 <div class="chat-actions">
-                  <n-button text @click="clearChat">
+                  <n-button quaternary size="small" @click="startNewSession">
                     <template #icon>
-                      <n-icon><Icon icon="mdi:clear" /></n-icon>
+                      <n-icon><Icon icon="mdi:refresh" /></n-icon>
                     </template>
+                    清空对话
                   </n-button>
                 </div>
               </div>
@@ -179,7 +155,7 @@
                   type="textarea"
                   placeholder="请输入你的需求..."
                   :autosize="{ minRows: 2, maxRows: 6 }"
-                  @keydown.enter.prevent="sendMessage"
+                  @keydown.enter="handleEnterKey"
                   :loading="isLoading"
                 />
                 <n-space justify="space-between">
@@ -210,11 +186,9 @@
             </div>
           </n-card>
         </n-grid-item>
-
-        </n-grid>
+      </n-grid>
     </div>
 
-  
     <!-- 模板选择弹窗 -->
     <n-modal
       v-model:show="templatesVisible"
@@ -412,7 +386,7 @@ export default {
 </script>
 
 <script setup>
-import { ref, reactive, onMounted, nextTick, computed } from 'vue'
+import { ref, reactive, onMounted, nextTick, computed, watch } from 'vue'
 import {
   NCard,
   NButton,
@@ -437,17 +411,24 @@ import {
   NText,
   NAlert,
   useMessage,
-  useDialog,
 } from 'naive-ui'
 import { Icon } from '@iconify/vue'
 import AppPage from '@/components/page/AppPage.vue'
 import { request } from '@/utils/http'
-import { chatStream } from '@/api/aigc'
 import { themeCategoriesApi } from '@/api/ideological'
+import { getToken } from '@/utils/auth/token'
+import MarkdownIt from 'markdown-it'
+
+// 初始化markdown渲染器
+const md = new MarkdownIt({
+  html: true,
+  linkify: true,
+  // 将单个换行渲染为<br>，结合 CSS 去掉 pre-wrap 可以避免额外空行
+  breaks: true,
+})
 
 // 响应式数据
 const message = useMessage()
-const dialog = useDialog()
 
 const isLoading = ref(false)
 const inputMessage = ref('')
@@ -531,6 +512,17 @@ const quickStartExamples = ref([
   }
 ])
 
+// 阶段标签映射
+const stageLabels = {
+  'greeting': '问候阶段',
+  'requirement_gathering': '需求收集中',
+  'clarification': '澄清需求中',
+  'drafting': '草稿生成中',
+  'refinement': '优化中',
+  'finalization': '已完成',
+  'completed': '已完成'
+}
+
 // 方法
 const sendMessage = async () => {
   if (!inputMessage.value.trim() || isLoading.value) return
@@ -548,162 +540,131 @@ const sendMessage = async () => {
   isLoading.value = true
   await scrollToBottom()
 
+  // 创建助手消息对象（流式更新）
+  const assistantMessage = reactive({
+    type: 'assistant',
+    content: '',
+    timestamp: new Date(),
+    isStreaming: true
+  })
+  messages.value.push(assistantMessage)
+
   try {
-    // 构建对话历史（用于保持上下文）
-    let conversationHistory = ''
-    const prevMessages = messages.value.slice(0, -1) // 排除当前正在处理的用户消息
-    if (prevMessages.length > 0) {
-      const conversationText = prevMessages.map(m => {
-        const role = m.type === 'user' ? '用户' : '助手'
-        return `${role}: ${m.content}`
-      }).join('\n\n')
-      conversationHistory = `之前的对话历史：\n${conversationText}\n\n`
+    // 获取token
+    const token = getToken()
+    if (!token) {
+      throw new Error('未登录，请先登录')
     }
 
-    // 构建提示词助手的系统提示
-    const systemPrompt = `你是 **PromptSmith**，一个专业的AI提示词制作助手。你的任务是帮助用户为其他大型语言模型(LLM)制作高质量的提示词模板。
-
-你的工作流程：
-1. 理解用户的需求和目标
-2. 如果需要更多信息，通过提问来澄清
-3. 应用提示词工程最佳实践（清晰性、上下文、明确指令、变量、示例等）
-4. 生成结构良好的提示词模板
-5. 用户可以对生成的提示词提出修改建议，你需要根据反馈进行优化
-
-提示词模板应该：
-- 清晰明确地说明任务要求
-- 提供必要的上下文信息
-- 定义输出格式和风格
-- 使用变量化设计（如：{{变量名}}）
-- 包含具体的约束和指导原则
-
-重要说明：
-- 这是一个持续对话过程，用户可以多次修改和完善提示词
-- 每次用户提供反馈后，都要基于之前的讨论继续优化
-- 即使已经生成了提示词模板，对话也可以继续
-
-${conversationHistory}现在请帮助用户：${userMessage}
-
-请直接与用户对话，询问需要的信息并最终提供一个完整的提示词模板。如果用户满意生成的提示词，请用 \`\`\`代码块包裹最终的提示词模板。记住，这只是一个开始，用户可以继续提出修改要求。`
-
-    // 添加助手占位消息（用于流式显示）
-    const assistantMessage = reactive({
-      type: 'assistant',
-      content: '',
-      timestamp: new Date(),
-      isStreaming: true
-    })
-    messages.value.push(assistantMessage)
-
-    // 使用AIGC流式聊天 - 构建完整的对话历史
-    const conversationMessages = []
-    messages.value.slice(0, -1).forEach(msg => {
-      if (msg.type === 'user') {
-        conversationMessages.push({ role: 'user', content: msg.content })
-      } else if (msg.type === 'assistant' && msg.content) {
-        conversationMessages.push({ role: 'assistant', content: msg.content })
-      }
+    // 使用流式API
+    const response = await fetch('/api/v1/ideological/prompt-assistant/chat/stream', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'token': token
+      },
+      body: JSON.stringify({
+        message: userMessage,
+        session_id: currentSessionId.value || null
+      })
     })
 
-    const messagesForAI = [
-      { role: 'system', content: systemPrompt },
-      ...conversationMessages
-    ]
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error('请求失败:', response.status, errorText)
+      throw new Error(`网络请求失败: ${response.status}`)
+    }
 
-    const iterator = chatStream(messagesForAI)
-    let fullResponse = ''
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
 
-    for await (const item of iterator) {
-      let textToAppend = ''
-      try {
-        if (item && item.type === 'chunk' && item.payload) {
-          const obj = item.payload
-          if (obj.choices && Array.isArray(obj.choices)) {
-            for (const c of obj.choices) {
-              if (c && c.delta) {
-                if (typeof c.delta.content === 'string' && c.delta.content.length > 0) {
-                  textToAppend += c.delta.content
-                }
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n')
+      
+      // 保留最后一行（可能不完整）
+      buffer = lines.pop() || ''
+
+      for (const line of lines) {
+        if (line.trim() === '') continue
+        
+        if (line.startsWith('data: ')) {
+          try {
+            const jsonStr = line.slice(6).trim()
+            if (!jsonStr) continue
+            
+            const data = JSON.parse(jsonStr)
+            console.log('📦 收到数据:', data)
+            
+            if (data.type === 'session_id') {
+              currentSessionId.value = data.session_id
+              console.log('✅ 会话ID:', data.session_id)
+            } else if (data.type === 'content') {
+              assistantMessage.content += data.content
+              await scrollToBottom()
+            } else if (data.type === 'done') {
+              assistantMessage.isStreaming = false
+              console.log('✅ 流式输出完成')
+              
+              // 更新阶段
+              if (data.session_stage) {
+                currentStage.value = stageLabels[data.session_stage] || '进行中'
               }
+              
+              // 设置建议的提示词
+              if (data.suggested_prompt) {
+                assistantMessage.suggestedPrompt = data.suggested_prompt
+                console.log('💡 建议的提示词已设置')
+              }
+              
+              // 设置最终提示词
+              if (data.final_prompt) {
+                assistantMessage.finalPrompt = data.final_prompt
+                isCompleted.value = true
+                currentStage.value = '可以继续优化'
+                console.log('🎉 最终提示词已生成')
+              }
+            } else if (data.type === 'error' || data.error) {
+              console.error('❌ 服务器错误:', data.error)
+              throw new Error(data.error || '未知错误')
             }
-          } else if (typeof obj.data === 'string') {
-            textToAppend += obj.data
+          } catch (e) {
+            console.warn('解析SSE数据失败:', line, e)
           }
-        } else if (item && item.type === 'text') {
-          textToAppend += String(item.payload)
         }
-      } catch (e) {
-        textToAppend = String(item)
-      }
-
-      if (textToAppend) {
-        assistantMessage.content += textToAppend
-        fullResponse += textToAppend
-        await scrollToBottom()
       }
     }
-
-    // 标记流式传输结束
-    assistantMessage.isStreaming = false
-
-    // 检查是否包含提示词内容（支持多种格式）
-    const promptPatterns = [
-      /```(?:prompt|提示词)?\s*([\s\S]*?)```/i,
-      /(?:最终提示词|提示词模板)[:：]\s*([\s\S]*?)(?=\n\n|$)/i,
-      /提示词：\s*([\s\S]*?)(?=\n\n|$)/i,
-    ]
-
-    let foundPrompt = null
-    for (const pattern of promptPatterns) {
-      const match = fullResponse.match(pattern)
-      if (match && match[1]) {
-        foundPrompt = match[1].trim()
-        break
-      }
-    }
-
-    // 如果没有找到明确的提示词，检查是否包含变量语法
-    if (!foundPrompt && fullResponse.includes('{{')) {
-      // 尝试提取包含变量的段落
-      const variableSections = fullResponse.split('\n').filter(line => line.includes('{{'))
-      if (variableSections.length > 0) {
-        foundPrompt = variableSections.join('\n').trim()
-      }
-    }
-
-    if (foundPrompt) {
-      assistantMessage.suggestedPrompt = foundPrompt
-      // 也添加为最终提示词
-      assistantMessage.finalPrompt = foundPrompt
-    }
-
-    // 更新会话状态 - 标记为有结果，但不阻止继续对话
-    if (assistantMessage.suggestedPrompt) {
-      isCompleted.value = true
-      currentStage.value = '可以继续优化'
-    }
-
-    await scrollToBottom()
 
   } catch (error) {
-    console.error('发送消息失败:', error)
-    message.error('发送消息失败，请重试')
-
-    // 移除流式消息并显示错误
-    messages.value.pop()
-    messages.value.push({
-      type: 'assistant',
-      content: '抱歉，我遇到了一些问题。请稍后再试。',
-      timestamp: new Date()
-    })
+    console.error('❌ 发送消息失败:', error)
+    message.error(`发送消息失败: ${error.message}`)
+    
+    if (assistantMessage.content === '') {
+      assistantMessage.content = '抱歉，我遇到了一些问题。请稍后再试。'
+    }
+    assistantMessage.isStreaming = false
   } finally {
     isLoading.value = false
+    await scrollToBottom()
   }
 }
 
 const sendQuickStart = async (quickMessage) => {
   inputMessage.value = quickMessage
   await sendMessage()
+}
+
+const handleEnterKey = (event) => {
+  // Shift+Enter 换行，单独 Enter 发送
+  if (event.shiftKey) {
+    return
+  }
+  event.preventDefault()
+  sendMessage()
 }
 
 const scrollToBottom = async () => {
@@ -727,12 +688,17 @@ const formatMessage = (content) => {
     return ''
   }
 
-  // 简单的markdown格式化
-  return content
-    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*(.*?)\*/g, '<em>$1</em>')
-    .replace(/`(.*?)`/g, '<code>$1</code>')
-    .replace(/\n/g, '<br>')
+  // 清理多余的空行
+  let cleanedContent = content
+    // 移除行尾空格
+    .replace(/[ \t]+$/gm, '')
+    // 将3个或更多连续换行符替换为2个
+    .replace(/\n{3,}/g, '\n\n')
+    // 移除开头和结尾的空行
+    .trim()
+  
+  // 使用markdown-it渲染
+  return md.render(cleanedContent)
 }
 
 const formatTime = (timestamp) => {
@@ -747,17 +713,6 @@ const formatTime = (timestamp) => {
   }
 }
 
-const formatSessionDate = (dateString) => {
-  const date = new Date(dateString)
-  return date.toLocaleDateString('zh-CN', {
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
-  })
-}
-
-
 const startNewSession = () => {
   messages.value = []
   currentSessionId.value = ''
@@ -765,19 +720,6 @@ const startNewSession = () => {
   isCompleted.value = false
   localStorage.removeItem('prompt-assistant-messages')
   message.success('已开始新会话')
-}
-
-const clearChat = () => {
-  dialog.warning({
-    title: '清空聊天记录',
-    content: '确定要清空当前聊天记录吗？这将不会影响历史会话。',
-    positiveText: '清空',
-    negativeText: '取消',
-    onPositiveClick: () => {
-      messages.value = []
-      message.success('聊天记录已清空')
-    }
-  })
 }
 
 const showTemplates = async () => {
@@ -858,34 +800,53 @@ const saveAsTemplate = (promptContent) => {
   // 自动提取变量
   templateForm.variables = extractedVariables.value
 
-  // 根据对话内容自动生成名称和描述
+  // 🔧 增强：智能分析提示词内容
   const userRequests = messages.value
     .filter(m => m.type === 'user')
     .map(m => m.content)
     .join(' ')
 
-  // 尝试从用户请求中提取关键词
+  // 关键词检测
   const keywords = []
-  if (userRequests.includes('写作') || userRequests.includes('文章')) keywords.push('写作')
-  if (userRequests.includes('代码') || userRequests.includes('编程')) keywords.push('编程')
-  if (userRequests.includes('分析') || userRequests.includes('总结')) keywords.push('分析')
-  if (userRequests.includes('创意') || userRequests.includes('故事')) keywords.push('创意')
-  if (userRequests.includes('教学') || userRequests.includes('课程')) keywords.push('教学')
+  const keywordMap = {
+    '写作': ['写', '创作', '编写', '文章', '内容', '写作'],
+    '编程': ['代码', '程序', '编程', '开发', 'code', 'programming'],
+    '分析': ['分析', '总结', '评估', '研究'],
+    '创意': ['创意', '想象', '故事', '设计'],
+    '教学': ['教学', '课程', '学习', '教育'],
+    '思政': ['思政', '价值观', '道德', '伦理']
+  }
 
+  for (const [category, words] of Object.entries(keywordMap)) {
+    if (words.some(word => userRequests.includes(word) || promptContent.includes(word))) {
+      keywords.push(category)
+    }
+  }
+
+  // 🔧 增强：智能填充名称和描述
   const keywordStr = keywords.length > 0 ? keywords.join('_') : '通用'
-  templateForm.name = `${keywordStr}提示词模板_${new Date().toLocaleDateString('zh-CN')}`
-  templateForm.description = `通过AI生成的${keywordStr}相关提示词模板，适用于${keywords.join('、')}等场景。`
+  const date = new Date().toLocaleDateString('zh-CN').replace(/\//g, '-')
+  templateForm.name = `${keywordStr}提示词模板_${date}`
+  templateForm.description = `通过AI助手生成的${keywordStr}相关提示词模板，适用于${keywords.join('、')}等场景。`
 
-  // 根据关键词智能选择分类
+  // 🔧 增强：智能选择类型和分类
   if (keywords.includes('教学')) {
+    templateForm.template_type = 'teaching_design'
     templateForm.category = '教学方法'
   } else if (keywords.includes('写作')) {
+    templateForm.template_type = 'content_optimization'
     templateForm.category = '内容优化'
   } else if (keywords.includes('编程')) {
+    templateForm.template_type = 'practice'
     templateForm.category = '实践指导'
   } else if (keywords.includes('分析')) {
+    templateForm.template_type = 'knowledge_point'
     templateForm.category = '知识点讲解'
+  } else if (keywords.includes('思政')) {
+    templateForm.template_type = 'case_generation'
+    templateForm.category = '思政案例'
   } else {
+    templateForm.template_type = 'case_generation'
     templateForm.category = '思政案例'
   }
 
@@ -944,7 +905,17 @@ const fetchTemplateOptions = async () => {
     // 获取主题选项（从数据库读取）
     try {
       const themesResponse = await themeCategoriesApi.getNames()
-      themeOptions.value = themesResponse.map(item => ({
+      // 🔧 修复：处理不同的响应格式
+      let themesData = []
+      if (Array.isArray(themesResponse)) {
+        themesData = themesResponse
+      } else if (Array.isArray(themesResponse?.data)) {
+        themesData = themesResponse.data
+      } else if (themesResponse?.data && typeof themesResponse.data === 'object') {
+        themesData = Object.values(themesResponse.data)
+      }
+      
+      themeOptions.value = themesData.map(item => ({
         label: item,
         value: item,
       }))
@@ -1045,23 +1016,7 @@ watch(
   display: flex;
   flex-direction: column;
   height: 100%;
-  gap: 16px;
-}
-
-.page-header {
-  margin-bottom: 16px;
-}
-
-.header-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.title-section h1 {
-  margin: 0;
-  font-size: 24px;
-  font-weight: 600;
+  gap: 10px;
 }
 
 .main-content {
@@ -1074,7 +1029,8 @@ watch(
   display: flex;
   flex-direction: column;
   position: relative;
-  overflow: hidden;
+  background: rgba(250, 250, 252, 0.5);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
 }
 
 .chat-container :deep(.n-card__content) {
@@ -1089,47 +1045,69 @@ watch(
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 16px;
-  border-bottom: 1px solid var(--n-border-color);
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
   flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.8);
 }
 
 .assistant-info {
   display: flex;
   align-items: center;
   gap: 12px;
+  flex: 1;
+  min-width: 0;
+}
+
+.assistant-details {
+  flex: 1;
+  min-width: 0;
 }
 
 .assistant-details h3 {
   margin: 0;
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .status-text {
   margin: 0;
   font-size: 12px;
-  opacity: 0.8;
+  opacity: 0.7;
+  color: var(--n-text-color-depth-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .assistant-avatar {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  border: 2px solid #fff;
-  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.15) 0%, rgba(118, 75, 162, 0.15) 100%);
+  color: #667eea;
+  border: 1px solid rgba(102, 126, 234, 0.2);
 }
 
 .messages-container {
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 16px;
+  padding: 12px;
   min-height: 0;
-  margin-bottom: 0;
   scroll-behavior: smooth;
-  background: var(--n-color);
+  background: rgba(250, 250, 252, 0.3);
   width: 100%;
   box-sizing: border-box;
+}
+
+.messages-container::-webkit-scrollbar {
+  width: 4px;
+}
+
+.messages-container::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 2px;
 }
 
 .welcome-message {
@@ -1141,33 +1119,36 @@ watch(
 }
 
 .welcome-content {
-  max-width: 500px;
+  max-width: 480px;
+  padding: 20px;
 }
 
 .welcome-content h3 {
-  margin: 16px 0 8px 0;
+  margin: 12px 0 6px 0;
   color: var(--n-text-color);
+  font-size: 18px;
 }
 
 .welcome-content p {
-  margin: 0 0 24px 0;
+  margin: 0 0 16px 0;
   color: var(--n-text-color-depth-3);
+  font-size: 14px;
 }
 
 .quick-start-buttons {
-  margin-top: 24px;
+  margin-top: 16px;
 }
 
 .messages-list {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
   width: 100%;
 }
 
 .message-item {
   display: flex;
-  gap: 12px;
+  gap: 8px;
   max-width: 85%;
   width: fit-content;
 }
@@ -1191,71 +1172,79 @@ watch(
 }
 
 .message-text {
-  background: var(--n-card-color);
-  padding: 12px 16px;
-  border-radius: 12px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  background: rgba(255, 255, 255, 0.9);
+  padding: 10px 14px;
+  border-radius: 8px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
   line-height: 1.6;
   word-wrap: break-word;
   word-break: break-word;
   overflow-wrap: break-word;
-  white-space: pre-wrap;
   width: 100%;
   box-sizing: border-box;
+  border: 1px solid rgba(0, 0, 0, 0.04);
 }
 
 .user-message .message-text {
-  background: var(--n-primary-color);
-  color: black;
-  font-weight: 500;
+  background: rgba(24, 160, 88, 0.08);
+  border-color: rgba(24, 160, 88, 0.15);
+  color: var(--n-text-color);
 }
 
 .message-time {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--n-text-color-depth-3);
-  margin-top: 4px;
+  margin-top: 3px;
   text-align: right;
 }
 
 .typing-indicator {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 12px 16px;
-  background: var(--n-card-color);
-  border-radius: 12px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  gap: 6px;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 8px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  border: 1px solid rgba(0, 0, 0, 0.04);
 }
 
 .prompt-suggestion-card {
-  margin-top: 12px;
+  margin-top: 8px;
 }
 
 .final-prompt-card {
-  margin-top: 12px;
+  margin-top: 8px;
 }
 
 /* 提示词代码显示框样式 */
 .prompt-code-display {
   margin: 0;
-  padding: 16px;
-  background: #f5f5f5;
-  border: 1px solid #e0e0e0;
-  border-radius: 8px;
+  padding: 12px;
+  background: rgba(250, 250, 252, 0.8);
+  border: 1px solid rgba(24, 160, 88, 0.15);
+  border-radius: 6px;
   font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
-  font-size: 14px;
+  font-size: 13px;
   line-height: 1.6;
   color: #333;
   white-space: pre-wrap;
   word-wrap: break-word;
   word-break: break-word;
   overflow-wrap: break-word;
-  max-height: 600px;
+  max-height: 500px;
   overflow-y: auto;
-  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
-/* 深色模式适配 */
+.prompt-code-display::-webkit-scrollbar {
+  width: 4px;
+}
+
+.prompt-code-display::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 2px;
+}
+
 html[data-theme="dark"] .prompt-code-display {
   background: #1e1e1e;
   border-color: #3a3a3a;
@@ -1263,54 +1252,49 @@ html[data-theme="dark"] .prompt-code-display {
 }
 
 .save-hint {
-  margin-top: 12px;
-}
-
-/* 增强保存按钮的视觉效果 */
-.final-prompt-card :deep(.n-button--warning) {
-  background: linear-gradient(135deg, #f59e0b, #d97706);
-  border-color: #d97706;
-  font-weight: 600;
-  animation: pulse 2s infinite;
-}
-
-@keyframes pulse {
-  0%, 100% {
-    box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.4);
-  }
-  50% {
-    box-shadow: 0 0 0 8px rgba(245, 158, 11, 0);
-  }
+  margin-top: 8px;
 }
 
 .input-container {
-  padding: 16px;
-  border-top: 1px solid var(--n-border-color);
-  background: var(--n-card-color);
+  padding: 12px;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+  background: rgba(255, 255, 255, 0.95);
   flex-shrink: 0;
   z-index: 10;
   backdrop-filter: blur(8px);
   width: 100%;
   box-sizing: border-box;
+  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.04);
 }
 
 
 .templates-grid {
-  max-height: 500px;
+  max-height: 450px;
   overflow-y: auto;
+}
+
+.templates-grid::-webkit-scrollbar {
+  width: 4px;
+}
+
+.templates-grid::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 2px;
 }
 
 .template-card {
   cursor: pointer;
-  transition: transform 0.2s ease;
+  transition: all 0.2s ease;
+  background: rgba(250, 250, 252, 0.5);
 }
 
 .template-card:hover {
-  transform: translateY(-2px);
+  background: rgba(24, 160, 88, 0.05);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
 }
 
 .template-meta {
-  margin-top: 8px;
+  margin-top: 6px;
 }
 
 /* 响应式设计 */
@@ -1328,5 +1312,170 @@ html[data-theme="dark"] .prompt-code-display {
   .message-item {
     max-width: 95%;
   }
+}
+
+/* Markdown渲染样式 */
+.message-text :deep(h1) {
+  font-size: 1.3em;
+  font-weight: 600;
+  padding-bottom: 0.2em;
+  margin-top: 0.6em;
+  margin-bottom: 0.4em;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.message-text :deep(h2) {
+  font-size: 1.2em;
+  font-weight: 600;
+  padding-bottom: 0.2em;
+  margin-top: 0.5em;
+  margin-bottom: 0.3em;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.message-text :deep(h3) {
+  font-size: 1.1em;
+  font-weight: 600;
+  margin-top: 0.5em;
+  margin-bottom: 0.3em;
+}
+
+.message-text :deep(h4),
+.message-text :deep(h5),
+.message-text :deep(h6) {
+  font-size: 1.05em;
+  font-weight: 600;
+  margin-top: 0.4em;
+  margin-bottom: 0.2em;
+}
+
+.message-text :deep(h1:first-child),
+.message-text :deep(h2:first-child),
+.message-text :deep(h3:first-child),
+.message-text :deep(h4:first-child),
+.message-text :deep(h5:first-child),
+.message-text :deep(h6:first-child) {
+  margin-top: 0;
+}
+
+.message-text :deep(p) {
+  margin-top: 0.2em;
+  margin-bottom: 0.2em;
+  line-height: 1.6;
+}
+
+.message-text :deep(p:first-child) {
+  margin-top: 0;
+}
+
+.message-text :deep(p:last-child) {
+  margin-bottom: 0;
+}
+
+.message-text :deep(ul),
+.message-text :deep(ol) {
+  padding-left: 1.8em;
+  margin-top: 0.4em;
+  margin-bottom: 0.6em;
+}
+
+.message-text :deep(ul) {
+  list-style-type: disc;
+}
+
+.message-text :deep(ol) {
+  list-style-type: decimal;
+}
+
+.message-text :deep(li) {
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
+}
+
+.message-text :deep(ul) {
+  list-style-type: disc;
+}
+
+.message-text :deep(ol) {
+  list-style-type: decimal;
+}
+
+.message-text :deep(li) {
+  margin-bottom: 0.5em;
+}
+
+.message-text :deep(code) {
+  background-color: rgba(0, 0, 0, 0.08);
+  padding: 3px 6px;
+  border-radius: 5px;
+  font-family: Consolas, Monaco, 'Andale Mono', 'Ubuntu Mono', monospace;
+  font-size: 0.9em;
+}
+
+.message-text :deep(pre) {
+  background-color: rgba(0, 0, 0, 0.1);
+  padding: 1em;
+  border-radius: 8px;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  overflow-x: auto;
+  margin: 0.5em 0;
+}
+
+.message-text :deep(pre code) {
+  background-color: transparent;
+  padding: 0;
+}
+
+.message-text :deep(blockquote) {
+  border-left: 3px solid var(--n-primary-color);
+  padding-left: 12px;
+  margin: 0.5em 0;
+  color: var(--n-text-color-depth-2);
+}
+
+.message-text :deep(a) {
+  color: var(--n-primary-color);
+  text-decoration: none;
+}
+
+.message-text :deep(a:hover) {
+  text-decoration: underline;
+}
+
+.message-text :deep(table) {
+  display: block;
+  overflow-x: auto;
+  white-space: nowrap;
+  margin-top: 1em;
+  margin-bottom: 1em;
+  width: 100%;
+  border-collapse: collapse;
+  border-spacing: 0;
+  font-size: 0.9em;
+}
+
+.message-text :deep(th),
+.message-text :deep(td) {
+  border: 1px solid var(--n-border-color, #e0e0e6);
+  padding: 10px 14px;
+  text-align: left;
+}
+
+.message-text :deep(th) {
+  font-weight: 600;
+  background-color: var(--n-color-hover, #f6f6f7);
+}
+
+.message-text :deep(tbody tr:nth-child(even)) {
+  background-color: #fcfcfc;
+}
+
+.message-text :deep(hr) {
+  margin-top: 25px;
+  margin-bottom: 25px;
+  border: none;
+  height: 3px;
+  background-color: var(--n-border-color, #e0e0e6);
 }
 </style>

@@ -109,3 +109,19 @@ export const themeCategoriesApi = {
   // 移动分类（拖拽）
   move: (id, data = {}) => request.post(`/ideological/theme-categories/${id}/move`, {}, { params: data }),
 }
+
+// 提示词助手相关API
+export const promptAssistantApi = {
+  // 与助手对话
+  chat: (data = {}) => request.post('/ideological/prompt-assistant/chat', data),
+  // 获取会话信息
+  getSession: (sessionId) => request.get(`/ideological/prompt-assistant/session/${sessionId}`),
+  // 获取用户会话列表
+  getSessions: (params = {}) => request.get('/ideological/prompt-assistant/sessions', { params }),
+  // 删除会话
+  deleteSession: (sessionId) => request.delete(`/ideological/prompt-assistant/session/${sessionId}`),
+  // 获取助手模板
+  getTemplates: (params = {}) => request.get('/ideological/prompt-assistant/templates', { params }),
+  // 使用模板
+  useTemplate: (templateId) => request.post(`/ideological/prompt-assistant/templates/${templateId}/use`),
+}

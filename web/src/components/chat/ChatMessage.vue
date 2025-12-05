@@ -3,12 +3,9 @@
     <div class="message-avatar">
       <n-avatar
         :size="32"
-        :src="message.role === 'user' ? undefined : '/robot-avatar.png'"
-        :fallback-src="
-          message.role === 'user'
-            ? undefined
-            : 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjMyIiBoZWlnaHQ9IjMyIiByeD0iMTYiIGZpbGw9IiM0Yzc5ZmYiLz4KPHN2ZyB3aWR0aD0iMTYiIGhlaWdodD0iMTYiIHZpZXdCb3g9IjAgMCAxNiAxNiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiB4PSI4IiB5PSI4Ij4KPHBhdGggZD0iTTggMkMxMC4yMDkxIDIgMTIgMy43OTA4NiAxMiA2VjEwQzEyIDEyLjIwOTEgMTAuMjA5MSAxNCA4IDE0QzUuNzkwODYgMTQgNCAxMi4yMDkxIDQgMTBWNkM0IDMuNzkwODYgNS43OTA4NiAyIDggMloiIGZpbGw9IndoaXRlIi8+CjxjaXJjbGUgY3g9IjYiIGN5PSI3IiByPSIxIiBmaWxsPSIjNGM3OWZmIi8+CjxjaXJjbGUgY3g9IjEwIiBjeT0iNyIgcj0iMSIgZmlsbD0iIzRjNzlmZiIvPgo8L3N2Zz4KPC9zdmc+'
-        "
+      >
+        round
+        :style="message.role === 'user' ? '' : 'background: linear-gradient(135deg, #4c79ff, #6ed0ff); color: #fff;'"
       >
         <template v-if="message.role === 'user'">
           <n-icon size="18" color="#4c79ff">
@@ -16,6 +13,16 @@
               <path
                 fill="currentColor"
                 d="M12 2C13.1 2 14 2.9 14 4C14 5.1 13.1 6 12 6C10.9 6 10 5.1 10 4C10 2.9 10.9 2 12 2ZM21 9V7L15 1.5V3.5L9 3.5V1.5L3 7V9H21ZM12 8C15.86 8 19 11.14 19 15V17C19 18.1 18.1 19 17 19H7C5.9 19 5 18.1 5 17V15C5 11.14 8.14 8 12 8Z"
+              />
+            </svg>
+          </n-icon>
+        </template>
+        <template v-else>
+          <n-icon size="18" color="#fff">
+            <svg viewBox="0 0 24 24">
+              <path
+                fill="currentColor"
+                d="M12 2C13.1 2 14 2.9 14 4C14 5.1 13.1 6 12 6C10.9 6 10 5.1 10 4C10 2.9 10.9 2 12 2ZM7 8.5L5 11H3V8.5L7 5.5V3.5H9V5.5L12 8.5L15 5.5V3.5H17V5.5L21 8.5V11H19L17 8.5L14 11H10L7 8.5ZM6 13H18C19.1 13 20 13.9 20 15V19C20 20.1 19.1 21 18 21H6C4.9 21 4 20.1 4 19V15C4 13.9 4.9 13 6 13ZM8 15C7.45 15 7 15.45 7 16C7 16.55 7.45 17 8 17C8.55 17 9 16.55 9 16C9 15.45 8.55 15 8 15ZM16 15C15.45 15 15 15.45 15 16C15 16.55 15.45 17 16 17C16.55 17 17 16.55 17 16C17 15.45 16.55 15 16 15Z"
               />
             </svg>
           </n-icon>
@@ -140,11 +147,16 @@ function renderMarkdown(content) {
 .user-message {
   flex-direction: row-reverse;
   background: linear-gradient(135deg, #f6f8ff 0%, #e8f0ff 100%);
+  margin-left: auto;
+  max-width: 65%;
+  width: fit-content;
 }
 
 .assistant-message {
   background: linear-gradient(135deg, #fff 0%, #f8fffe 100%);
   border: 1px solid var(--n-border-color);
+  margin-right: auto;
+  max-width: 85%;
 }
 
 .message-avatar {
@@ -165,7 +177,9 @@ function renderMarkdown(content) {
 }
 
 .user-message .message-content {
-  text-align: right;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
 }
 
 .message-header {
@@ -175,10 +189,13 @@ function renderMarkdown(content) {
   margin-bottom: 8px;
   font-size: 12px;
   color: var(--n-text-color-depth-3);
+  width: 100%;
 }
 
 .user-message .message-header {
   flex-direction: row-reverse;
+  justify-content: flex-start;
+  gap: 8px;
 }
 
 .message-role {
@@ -194,6 +211,17 @@ function renderMarkdown(content) {
   line-height: 1.6;
   color: var(--n-text-color);
   word-wrap: break-word;
+  font-size: 14px;
+}
+
+.message-text :deep(p) {
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
+}
+
+.user-message .message-text {
+  text-align: left;
+  max-width: 100%;
 }
 
 /* 为两种列表设置通用的内外边距 */
@@ -279,6 +307,7 @@ function renderMarkdown(content) {
 .message-actions {
   opacity: 0;
   transition: opacity 0.3s ease;
+  width: 100%;
 }
 
 .chat-message:hover .message-actions {
@@ -286,7 +315,8 @@ function renderMarkdown(content) {
 }
 
 .user-message .message-actions {
-  text-align: right;
+  display: flex;
+  justify-content: flex-end;
 }
 
 /* ---- 表格响应式支持 ---- */
@@ -342,36 +372,54 @@ function renderMarkdown(content) {
 
 /* 一级标题 H1 (#) */
 .message-text :deep(h1) {
-  font-size: 2em; /* 字体大小，大约是普通文本的2倍 */
+  font-size: 1.4em; /* 减小字体大小 */
+  font-weight: 600;
   padding-bottom: 0.3em;
-  border-bottom: 1px solid var(--n-border-color, #e0e0e6); /* 可选：添加一条下划线，类似GitHub风格 */
+  margin-top: 0.8em;
+  margin-bottom: 0.5em;
+  border-bottom: 1px solid var(--n-border-color, #e0e0e6);
 }
 
 /* 二级标题 H2 (##) */
 .message-text :deep(h2) {
-  font-size: 1.7em; /* 字体大小，大约是普通文本的1.7倍 */
+  font-size: 1.25em; /* 减小字体大小 */
+  font-weight: 600;
   padding-bottom: 0.3em;
-  border-bottom: 1px solid var(--n-border-color, #e0e0e6); /* 可选：添加一条下划线 */
+  margin-top: 0.7em;
+  margin-bottom: 0.4em;
+  border-bottom: 1px solid var(--n-border-color, #e0e0e6);
 }
 
 /* 三级标题 H3 (###) */
 .message-text :deep(h3) {
-  font-size: 1.4em; /* 字体大小，大约是普通文本的1.4倍 */
+  font-size: 1.15em; /* 减小字体大小 */
+  font-weight: 600;
+  margin-top: 0.6em;
+  margin-bottom: 0.4em;
 }
 
 /* 四级标题 H4 (####) */
 .message-text :deep(h4) {
-  font-size: 1.2em; /* 字体大小，大约是普通文本的1.2倍 */
+  font-size: 1.1em; /* 减小字体大小 */
+  font-weight: 600;
+  margin-top: 0.5em;
+  margin-bottom: 0.3em;
 }
 
 /* 五级标题 H5 (#####) */
 .message-text :deep(h5) {
-  font-size: 1.1em;
+  font-size: 1.05em;
+  font-weight: 600;
+  margin-top: 0.5em;
+  margin-bottom: 0.3em;
 }
 
 /* 六级标题 H6 (######) */
 .message-text :deep(h6) {
-  font-size: 1em; /* 和正文一样大，但更粗 */
+  font-size: 1em;
+  font-weight: 600;
+  margin-top: 0.5em;
+  margin-bottom: 0.3em;
 }
 
 /* 如果标题是消息的第一个元素，则移除多余的上边距，让布局更紧凑 */
@@ -389,6 +437,11 @@ function renderMarkdown(content) {
   .chat-message {
     padding: 12px;
     gap: 8px;
+  }
+
+  .user-message,
+  .assistant-message {
+    max-width: 90%;
   }
 
   .message-header {

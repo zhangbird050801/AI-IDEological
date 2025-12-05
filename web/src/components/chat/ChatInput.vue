@@ -109,23 +109,36 @@
       v-model:show="showPromptTemplates"
       preset="card"
       title="选择提示词模板"
-      style="width: 600px"
+      style="width: 900px; max-height: 80vh"
     >
-      <n-list>
-        <n-list-item v-for="template in promptTemplates" :key="template.id">
-          <n-thing :title="template.title" :description="template.description">
-            <template #action>
-              <n-button size="small" @click="useTemplate(template)"> 使用模板 </n-button>
-            </template>
-          </n-thing>
-        </n-list-item>
-      </n-list>
+      <div class="template-grid">
+        <n-grid :cols="3" :x-gap="12" :y-gap="12">
+          <n-grid-item v-for="template in promptTemplates" :key="template.id">
+            <n-card
+              size="small"
+              hoverable
+              class="template-card"
+              :title="template.title"
+            >
+              <div class="template-desc">{{ template.description || '暂无描述' }}</div>
+              <div class="template-content-preview">
+                {{ template.content?.slice(0, 140) || '无内容' }}{{ (template.content && template.content.length > 140) ? '...' : '' }}
+              </div>
+              <template #action>
+                <n-button size="small" type="primary" block @click="useTemplate(template)">
+                  使用模板
+                </n-button>
+              </template>
+            </n-card>
+          </n-grid-item>
+        </n-grid>
+      </div>
     </n-modal>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, nextTick } from 'vue'
+import { ref, computed, nextTick, onMounted } from 'vue'
 import {
   NInput,
   NButton,
@@ -134,12 +147,13 @@ import {
   NTooltip,
   NTag,
   NModal,
-  NList,
-  NListItem,
-  NThing,
+  NCard,
+  NGrid,
+  NGridItem,
   useMessage,
 } from 'naive-ui'
 import { Icon } from '@iconify/vue'
+import { templatesApi } from '@/api/ideological'
 
 const props = defineProps({
   loading: {
@@ -167,29 +181,56 @@ const canSend = computed(() => {
 })
 
 // 预设提示词模板
-const promptTemplates = ref([
+const defaultTemplates = [
   {
-    id: 1,
+    id: 'default-1',
     title: '软件工程基础案例',
     description: '生成软件工程基础知识相关的思政案例',
     content:
       '请为《软件工程》课程生成一个思政案例：\n\n课程章节：[请填写章节名称]\n知识点：[请填写具体知识点]\n思政主题：职业道德、团队协作\n案例要求：结合实际软件开发项目，体现工程师的社会责任',
   },
   {
-    id: 2,
+    id: 'default-2',
     title: '团队协作案例',
     description: '强调团队合作和沟通的重要性',
     content:
       '请生成一个关于团队协作的思政案例：\n\n背景：敏捷开发团队项目\n重点：有效沟通、相互信任、共同目标\n思政要素：集体主义精神、协作共赢\n期望效果：培养学生团队意识和协作能力',
   },
   {
-    id: 3,
+    id: 'default-3',
     title: '质量与责任案例',
     description: '突出软件质量与社会责任的关系',
     content:
       '请创建一个关于软件质量的思政案例：\n\n主题：软件质量与社会影响\n场景：关键系统软件开发\n思政角度：精益求精、社会责任感\n教学目标：培养学生对软件质量的敬畏之心',
   },
-])
+]
+
+const promptTemplates = ref([...defaultTemplates])
+
+const loadPromptTemplates = async () => {
+  try {
+    const res = await templatesApi.getList({ page: 1, size: 50, is_active: true })
+    const data = res?.data || res || {}
+    const items = data.items || data || []
+    const mapped = items
+      .map((t) => ({
+        id: t.id,
+        title: t.name || t.title,
+        description: t.description || '',
+        content: t.template_content || t.content || '',
+      }))
+      .filter((t) => t.content)
+
+    if (mapped.length) {
+      promptTemplates.value = mapped
+    } else {
+      promptTemplates.value = [...defaultTemplates]
+    }
+  } catch (error) {
+    console.error('获取提示词模板失败:', error)
+    promptTemplates.value = [...defaultTemplates]
+  }
+}
 
 function handleKeydown(e) {
   if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey) {
@@ -268,6 +309,10 @@ function setContent(content) {
     inputRef.value?.focus()
   })
 }
+
+onMounted(() => {
+  loadPromptTemplates()
+})
 
 // 暴露方法供父组件调用
 defineExpose({
@@ -375,6 +420,37 @@ defineExpose({
 
 .attachments-preview .n-tag .n-icon {
   color: var(--n-text-color) !important;
+}
+
+.template-grid {
+  max-height: 65vh;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.template-card {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.template-desc {
+  font-size: 13px;
+  color: var(--n-text-color-depth-3);
+  min-height: 36px;
+}
+
+.template-content-preview {
+  flex: 1;
+  font-size: 13px;
+  color: var(--n-text-color);
+  background: var(--n-color-hover);
+  border: 1px solid var(--n-border-color);
+  border-radius: 6px;
+  padding: 8px;
+  line-height: 1.5;
+  white-space: pre-line;
 }
 
 /* 夜间模式适配 */
