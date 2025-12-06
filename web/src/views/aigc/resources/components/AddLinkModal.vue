@@ -60,9 +60,9 @@
           />
         </n-form-item-grid-item>
 
-        <n-form-item-grid-item label="思政主题" path="ideological_theme">
+        <n-form-item-grid-item label="思政主题" path="theme_category_id">
           <n-select
-            v-model:value="formData.ideological_theme"
+            v-model:value="formData.theme_category_id"
             placeholder="选择主题"
             :options="themeOptions"
             clearable
@@ -140,7 +140,7 @@ const formData = reactive({
   resource_type: 'link',
   description: '',
   software_engineering_chapter: null,
-  ideological_theme: null,
+  theme_category_id: null,
   tags: [],
   is_public: true,
 })
@@ -221,7 +221,7 @@ const resetForm = () => {
     resource_type: 'link',
     description: '',
     software_engineering_chapter: null,
-    ideological_theme: null,
+    theme_category_id: null,
     tags: [],
     is_public: true,
   })

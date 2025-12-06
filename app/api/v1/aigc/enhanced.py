@@ -16,6 +16,7 @@ from app.models.ideological import (
 )
 from app.models.admin import User
 from app.core.dependency import AuthControl
+from app.services.theme_service import ThemeService
 from fastapi.responses import StreamingResponse
 import time
 import json
@@ -58,11 +59,16 @@ class EnhancedAIGCService:
             else:
                 prompt = request.prompt
 
+            # 获取主题名称
+            theme_name = None
+            if request.theme_category_id:
+                theme_name = await ThemeService.get_theme_name_by_id(request.theme_category_id)
+            
             # 构建系统提示词，增强思政教育效果
             system_prompt = self._build_system_prompt(
                 request.generation_type,
                 request.software_engineering_chapter,
-                request.ideological_theme
+                theme_name
             )
 
             # 构建消息数组
@@ -87,7 +93,7 @@ class EnhancedAIGCService:
                 prompt_template_id=request.template_id,
                 generation_type=request.generation_type,
                 software_engineering_chapter=request.software_engineering_chapter,
-                ideological_theme=request.ideological_theme,
+                theme_category_id=request.theme_category_id,
                 token_count=int(token_count),
                 generation_time=generation_time,
                 user_id=user_id
@@ -138,11 +144,16 @@ class EnhancedAIGCService:
             else:
                 prompt = request.prompt
 
+            # 获取主题名称
+            theme_name = None
+            if request.theme_category_id:
+                theme_name = await ThemeService.get_theme_name_by_id(request.theme_category_id)
+            
             # 构建系统提示词
             system_prompt = self._build_system_prompt(
                 request.generation_type,
                 request.software_engineering_chapter,
-                request.ideological_theme
+                theme_name
             )
 
             # 构建消息数组
@@ -175,7 +186,7 @@ class EnhancedAIGCService:
                         prompt_template_id=request.template_id,
                         generation_type=request.generation_type,
                         software_engineering_chapter=request.software_engineering_chapter,
-                        ideological_theme=request.ideological_theme,
+                        theme_category_id=request.theme_category_id,
                         token_count=int(token_count),
                         generation_time=generation_time,
                         user_id=user_id
@@ -348,9 +359,9 @@ async def save_as_case(
         "software_engineering_chapter",
         history.software_engineering_chapter or ""
     )
-    case_data["ideological_theme"] = case_data.get(
-        "ideological_theme",
-        history.ideological_theme or ""
+    case_data["theme_category_id"] = case_data.get(
+        "theme_category_id",
+        history.theme_category_id
     )
 
     case_in = IdeologicalCaseCreate(**case_data)

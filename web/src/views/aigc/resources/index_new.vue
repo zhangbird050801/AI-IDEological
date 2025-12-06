@@ -89,7 +89,7 @@
 
             <n-form-item-grid-item :span="1" label="思政主题">
               <n-select
-                v-model:value="searchForm.ideological_theme"
+                v-model:value="searchForm.theme_category_id"
                 placeholder="全部主题"
                 :options="themeOptions"
                 clearable
@@ -173,8 +173,8 @@
                         <n-tag v-if="resource.software_engineering_chapter" size="small" type="info" :bordered="false">
                           {{ resource.software_engineering_chapter }}
                         </n-tag>
-                        <n-tag v-if="resource.ideological_theme" size="small" type="success" :bordered="false">
-                          {{ resource.ideological_theme }}
+                        <n-tag v-if="resource.theme_name" size="small" type="success" :bordered="false">
+                          {{ resource.theme_name }}
                         </n-tag>
                         <n-text v-if="resource.file_size" depth="3" style="font-size: 12px;">
                           {{ formatFileSize(resource.file_size) }}
@@ -319,6 +319,7 @@ import AddLinkModal from './components/AddLinkModal.vue'
 import ResourceDetailModal from './components/ResourceDetailModal.vue'
 
 import { request } from '@/utils'
+import { themeCategoriesApi } from '@/api/ideological'
 
 const message = useMessage()
 const dialog = useDialog()
@@ -340,7 +341,7 @@ const searchForm = reactive({
   keyword: '',
   resource_type: null,
   software_engineering_chapter: null,
-  ideological_theme: null,
+  theme_category_id: null,
 })
 
 // 分页
@@ -419,13 +420,33 @@ const fetchOptions = async () => {
     }))
 
     // 加载主题选项
-    const themesRes = await request.get('/ideological/cases/themes/list')
-    themeOptions.value = (themesRes?.data || themesRes || []).map(item => ({
-      label: item,
-      value: item,
-    }))
+    const themesResponse = await themeCategoriesApi.getList()
+    console.log('📥 [ResourcesNew] 主题分类API响应:', themesResponse)
+    
+    let themesData = themesResponse?.data?.data || themesResponse?.data || themesResponse
+    console.log('📦 [ResourcesNew] 解包后的数据:', themesData)
+    
+    if (!Array.isArray(themesData)) {
+      console.error('❗ [ResourcesNew] 主题数据不是数组')
+      throw new Error('主题数据格式错误')
+    }
+    
+    themeOptions.value = themesData
+      .filter(item => item.is_active && item.parent_id !== null)
+      .map(item => ({
+        label: item.name,
+        value: item.id,  // 使用ID作为值
+      }))
+    
+    console.log('✅ [ResourcesNew] 处理后的主题选项:', themeOptions.value)
   } catch (error) {
-    console.error('加载选项失败:', error)
+    console.error('❗ [ResourcesNew] 加载选项失败:', error)
+    // fallback数据
+    themeOptions.value = [
+      { label: '工匠精神', value: 5 },
+      { label: '创新精神', value: 6 },
+      { label: '团队协作', value: 11 }
+    ]
   }
 }
 
@@ -441,7 +462,7 @@ const resetSearch = () => {
     keyword: '',
     resource_type: null,
     software_engineering_chapter: null,
-    ideological_theme: null,
+    theme_category_id: null,
   })
   handleSearch()
 }

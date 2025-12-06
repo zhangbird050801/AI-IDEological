@@ -60,13 +60,13 @@
         </n-descriptions>
 
         <!-- 教学信息 -->
-        <n-card title="教学信息" size="small" v-if="resource.software_engineering_chapter || resource.ideological_theme">
+        <n-card title="教学信息" size="small" v-if="resource.software_engineering_chapter || resource.theme_name">
           <n-descriptions :column="2" size="small">
             <n-descriptions-item label="软件工程章节" v-if="resource.software_engineering_chapter">
               <n-tag type="info" size="small">{{ resource.software_engineering_chapter }}</n-tag>
             </n-descriptions-item>
-            <n-descriptions-item label="思政主题" v-if="resource.ideological_theme">
-              <n-tag type="success" size="small">{{ resource.ideological_theme }}</n-tag>
+            <n-descriptions-item label="思政主题" v-if="resource.theme_name">
+              <n-tag type="success" size="small">{{ resource.theme_name }}</n-tag>
             </n-descriptions-item>
           </n-descriptions>
         </n-card>

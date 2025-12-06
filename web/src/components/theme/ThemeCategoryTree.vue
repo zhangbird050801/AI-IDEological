@@ -14,7 +14,7 @@
 
 <script setup>
 import { h, computed } from 'vue'
-import { NTree, NSpace, NButton, NIcon, NText } from 'naive-ui'
+import { NTree, NSpace, NButton, NIcon, NText, NBadge } from 'naive-ui'
 import { Icon } from '@iconify/vue'
 
 const props = defineProps({
@@ -25,10 +25,14 @@ const props = defineProps({
   expandAll: {
     type: Boolean,
     default: false
+  },
+  caseCount: {
+    type: Object,
+    default: () => ({})
   }
 })
 
-const emit = defineEmits(['edit', 'delete', 'add-child', 'move'])
+const emit = defineEmits(['edit', 'delete', 'add-child', 'move', 'view-cases'])
 
 // 转换数据格式
 const treeData = computed(() => {
@@ -58,6 +62,7 @@ function convertToTreeData(data) {
     label: item.name,
     isActive: item.is_active,
     description: item.description,
+    caseCount: props.caseCount[item.id] || 0,
     children: item.children ? convertToTreeData(item.children) : []
   }))
 }
@@ -79,6 +84,15 @@ function renderLabel({ option }) {
               ),
               !option.isActive && h(NText, { type: 'error', depth: 3, style: { fontSize: '12px' } }, 
                 { default: () => '(已禁用)' }
+              ),
+              option.caseCount > 0 && h(
+                NBadge,
+                { value: option.caseCount, type: 'info', showZero: false },
+                {
+                  default: () => h(NText, { depth: 3, style: { fontSize: '12px', marginLeft: '4px' } },
+                    { default: () => '案例' }
+                  )
+                }
               )
             ]
           }
@@ -88,6 +102,21 @@ function renderLabel({ option }) {
           { size: 4 },
           {
             default: () => [
+              option.caseCount > 0 && h(
+                NButton,
+                {
+                  size: 'tiny',
+                  text: true,
+                  type: 'info',
+                  onClick: (e) => {
+                    e.stopPropagation()
+                    emit('view-cases', option.key)
+                  }
+                },
+                {
+                  default: () => h(NIcon, null, { default: () => h(Icon, { icon: 'ant-design:eye-outlined' }) })
+                }
+              ),
               h(
                 NButton,
                 {

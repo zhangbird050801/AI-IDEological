@@ -53,8 +53,7 @@ class ResourceService(CRUDBase[TeachingResourceModel, TeachingResourceCreate, Te
             keyword = search_request.keyword.strip()
             query = query.filter(
                 Q(title__icontains=keyword) |
-                Q(description__icontains=keyword) |
-                Q(ideological_theme__icontains=keyword)
+                Q(description__icontains=keyword)
             )
 
         # 其他筛选条件
@@ -64,8 +63,8 @@ class ResourceService(CRUDBase[TeachingResourceModel, TeachingResourceCreate, Te
         if search_request.software_engineering_chapter:
             query = query.filter(software_engineering_chapter__icontains=search_request.software_engineering_chapter)
 
-        if search_request.ideological_theme:
-            query = query.filter(ideological_theme__icontains=search_request.ideological_theme)
+        if search_request.theme_category_id:
+            query = query.filter(theme_category_id=search_request.theme_category_id)
 
         if search_request.tags:
             for tag in search_request.tags:
@@ -160,7 +159,7 @@ async def get_resources(
     keyword: str = Query(None, description="关键词搜索"),
     resource_type: str = Query(None, description="资源类型"),
     software_engineering_chapter: str = Query(None, description="软件工程章节"),
-    ideological_theme: str = Query(None, description="思政主题"),
+    theme_category_id: int = Query(None, description="思政主题分类ID"),
     page: int = Query(1, ge=1, description="页码"),
     page_size: int = Query(10, ge=1, le=100, description="每页数量"),
     current_user: User = Depends(AuthControl.is_authed)
@@ -169,7 +168,7 @@ async def get_resources(
         keyword=keyword,
         resource_type=resource_type,
         software_engineering_chapter=software_engineering_chapter,
-        ideological_theme=ideological_theme,
+        theme_category_id=theme_category_id,
         page=page,
         page_size=page_size
     )
@@ -195,7 +194,7 @@ async def create_resource(
     external_url: str = Form(None),
     tags: str = Form(None),
     software_engineering_chapter: str = Form(None),
-    ideological_theme: str = Form(None),
+    theme_category_id: int = Form(None),
     is_public: bool = Form(True),
     file: UploadFile = File(None),
     current_user: User = Depends(AuthControl.is_authed)
@@ -217,7 +216,7 @@ async def create_resource(
         "external_url": external_url,
         "tags": tags_list,
         "software_engineering_chapter": software_engineering_chapter,
-        "ideological_theme": ideological_theme,
+        "theme_category_id": theme_category_id,
         "is_public": is_public
     }
 

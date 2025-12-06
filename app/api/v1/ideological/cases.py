@@ -14,8 +14,17 @@ from app.models.ideological import IdeologicalCase as IdeologicalCaseModel
 from app.models.admin import User
 from app.core.dependency import AuthControl
 from app.core.crud import CRUDBase
+from app.services.theme_service import ThemeService
 
 router = APIRouter()
+
+async def enrich_case_with_theme_name(case: IdeologicalCaseModel) -> dict:
+    """为案例对象添加主题名称"""
+    case_dict = IdeologicalCase.from_orm(case).dict()
+    if case.theme_category_id:
+        theme_name = await ThemeService.get_theme_name_by_id(case.theme_category_id)
+        case_dict['theme_name'] = theme_name
+    return case_dict
 
 class CaseService(CRUDBase[IdeologicalCaseModel, IdeologicalCaseCreate, IdeologicalCaseUpdate]):
     def __init__(self):
@@ -24,6 +33,10 @@ class CaseService(CRUDBase[IdeologicalCaseModel, IdeologicalCaseCreate, Ideologi
     async def create_case(self, obj_in: IdeologicalCaseCreate, user_id: int) -> IdeologicalCaseModel:
         obj_data = obj_in.dict()
         obj_data["author_id"] = user_id
+        
+        # 处理主题转换：如果只有名称没有ID，尝试转换
+        obj_data = await ThemeService.process_form_data(obj_data)
+        
         case = await self.create(obj_data)
         return case
 
@@ -43,16 +56,15 @@ class CaseService(CRUDBase[IdeologicalCaseModel, IdeologicalCaseCreate, Ideologi
             keyword = search_request.keyword.strip()
             query = query.filter(
                 Q(title__icontains=keyword) |
-                Q(content__icontains=keyword) |
-                Q(ideological_theme__icontains=keyword)
+                Q(content__icontains=keyword)
             )
 
         # 其他筛选条件
         if search_request.software_engineering_chapter:
             query = query.filter(software_engineering_chapter=search_request.software_engineering_chapter)
 
-        if search_request.ideological_theme:
-            query = query.filter(ideological_theme__icontains=search_request.ideological_theme)
+        if search_request.theme_category_id:
+            query = query.filter(theme_category_id=search_request.theme_category_id)
 
         if search_request.case_type:
             query = query.filter(case_type=search_request.case_type)
@@ -119,7 +131,7 @@ case_service = CaseService()
 async def get_cases(
     keyword: str = Query(None, description="关键词搜索"),
     software_engineering_chapter: str = Query(None, description="软件工程章节"),
-    ideological_theme: str = Query(None, description="思政主题"),
+    theme_category_id: int = Query(None, description="思政主题分类ID"),
     case_type: str = Query(None, description="案例类型"),
     difficulty_level: int = Query(None, ge=1, le=5, description="难度等级"),
     page: int = Query(1, ge=1, description="页码"),
@@ -129,7 +141,7 @@ async def get_cases(
     search_request = CaseSearchRequest(
         keyword=keyword,
         software_engineering_chapter=software_engineering_chapter,
-        ideological_theme=ideological_theme,
+        theme_category_id=theme_category_id,
         case_type=case_type,
         difficulty_level=difficulty_level,
         page=page,
@@ -138,8 +150,11 @@ async def get_cases(
 
     result = await case_service.get_cases_with_search(search_request, current_user.id)
 
-    # 转换为响应格式
-    cases = [IdeologicalCase.from_orm(item) for item in result["items"]]
+    # 转换为响应格式，并添加主题名称
+    cases = []
+    for item in result["items"]:
+        case_dict = await enrich_case_with_theme_name(item)
+        cases.append(case_dict)
 
     return {
         "items": cases,
@@ -155,7 +170,7 @@ async def create_case(
     current_user: User = Depends(AuthControl.is_authed)
 ):
     case = await case_service.create_case(case_in, current_user.id)
-    return IdeologicalCase.from_orm(case)
+    return await enrich_case_with_theme_name(case)
 
 @router.get("/{case_id}", summary="获取案例详情")
 async def get_case(
@@ -174,7 +189,7 @@ async def get_case(
     await case.update_from_dict({"usage_count": case.usage_count + 1})
     await case.save()
 
-    return IdeologicalCase.from_orm(case)
+    return await enrich_case_with_theme_name(case)
 
 @router.put("/{case_id}", summary="更新案例")
 async def update_case(
@@ -191,10 +206,14 @@ async def update_case(
         raise HTTPException(status_code=403, detail="无权修改该案例")
 
     update_data = case_in.dict(exclude_unset=True)
+    
+    # 处理主题转换
+    update_data = await ThemeService.process_form_data(update_data)
+    
     await case.update_from_dict(update_data)
     await case.save()
 
-    return IdeologicalCase.from_orm(case)
+    return await enrich_case_with_theme_name(case)
 
 @router.delete("/{case_id}", summary="删除案例")
 async def delete_case(

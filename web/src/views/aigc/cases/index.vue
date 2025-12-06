@@ -88,7 +88,7 @@
 
             <n-form-item-grid-item :span="1" label="思政主题">
               <n-select
-                v-model:value="searchForm.ideological_theme"
+                v-model:value="searchForm.theme_category_id"
                 placeholder="选择主题"
                 :options="themeOptions"
                 clearable
@@ -191,8 +191,8 @@
                       <n-tag size="small" type="info">
                         {{ case_item.software_engineering_chapter }}
                       </n-tag>
-                      <n-tag size="small" type="success">
-                        {{ case_item.ideological_theme }}
+                      <n-tag size="small" type="success" v-if="case_item.theme_name">
+                        {{ case_item.theme_name }}
                       </n-tag>
                     </n-space>
                   </div>
@@ -304,9 +304,9 @@
             />
           </n-form-item-grid-item>
 
-          <n-form-item-grid-item label="思政主题" path="ideological_theme">
+          <n-form-item-grid-item label="思政主题" path="theme_category_id">
             <n-select
-              v-model:value="caseForm.ideological_theme"
+              v-model:value="caseForm.theme_category_id"
               placeholder="选择主题"
               :options="themeOptions"
             />
@@ -448,7 +448,7 @@
               <n-tag type="info">{{ currentCase.software_engineering_chapter }}</n-tag>
             </n-descriptions-item>
             <n-descriptions-item label="思政主题">
-              <n-tag type="success">{{ currentCase.ideological_theme }}</n-tag>
+              <n-tag type="success">{{ currentCase.theme_name || '-' }}</n-tag>
             </n-descriptions-item>
             <n-descriptions-item label="案例类型">
               <n-tag>{{ getCaseTypeLabel(currentCase.case_type) }}</n-tag>
@@ -799,7 +799,7 @@ const ratingForm = reactive({
 const searchForm = reactive({
   keyword: '',
   software_engineering_chapter: null,
-  ideological_theme: null,
+  theme_category_id: null,
   case_type: null,
   difficulty_level: null,
   show_favorites_only: false, // 只显示收藏的案例
@@ -811,7 +811,7 @@ const caseForm = reactive({
   title: '',
   content: '',
   software_engineering_chapter: null,
-  ideological_theme: null,
+  theme_category_id: null,  // 使用外键ID
   case_type: null,
   difficulty_level: 3,
   key_points: [],
@@ -876,8 +876,20 @@ const caseFormRules = {
   software_engineering_chapter: [
     { required: true, message: '请选择软件工程章节', trigger: 'change' },
   ],
-  ideological_theme: [
-    { required: true, message: '请选择思政主题', trigger: 'change' },
+  theme_category_id: [
+    { 
+      required: true, 
+      type: 'number',
+      message: '请选择思政主题', 
+      trigger: ['change', 'blur'],
+      validator: (rule, value) => {
+        console.log('验证 theme_category_id:', value, typeof value)
+        if (!value) {
+          return new Error('请选择思政主题')
+        }
+        return true
+      }
+    },
   ],
   case_type: [
     { required: true, message: '请选择案例类型', trigger: 'change' },
@@ -900,8 +912,17 @@ const columns = [
   },
   {
     title: '思政主题',
-    key: 'ideological_theme',
+    key: 'theme_name',
     width: 120,
+    render(row) {
+      if (row.theme_name) {
+        return row.theme_name
+      }
+      if (row.theme_category_id) {
+        return `[ID:${row.theme_category_id}]`
+      }
+      return '-'
+    }
   },
   {
     title: '案例类型',
@@ -994,9 +1015,11 @@ const fetchCases = async () => {
       page: viewMode.value === 'list' ? pagination.page : 1,
       page_size: viewMode.value === 'list' ? pagination.pageSize : 12,
     }
+    
+    console.log('📤 请求参数:', params)
 
     const response = await request.get('/ideological/cases/', { params })
-    console.log('获取案例列表响应:', response)
+    console.log('📥 获取案例列表响应:', response)
     
     // 响应数据在 response.data 中
     const data = response?.data || response
@@ -1009,6 +1032,17 @@ const fetchCases = async () => {
     }
     
     casesList.value = items
+    
+    console.log(`✅ 获取到 ${items.length} 个案例，总数: ${data?.total || 0}`)
+    
+    // 调试：检查第一个案例的数据
+    if (items.length > 0) {
+      console.log('第一个案例数据:', items[0])
+      console.log('theme_category_id:', items[0].theme_category_id)
+      console.log('theme_name:', items[0].theme_name)
+    } else {
+      console.log('⚠️ 没有获取到任何案例')
+    }
     
     // 更新收藏状态
     updateFavoritesStatus()
@@ -1044,20 +1078,46 @@ const fetchOptions = async () => {
     ].map((item) => ({ label: item, value: item }))
   }
 
-    // 获取主题选项（从数据库读取）
+    // 获取主题选项（从数据库读取）- 现在返回 ID 和名称
     try {
-      const themesResponse = await themeCategoriesApi.getNames()
-      themeOptions.value = themesResponse.map(item => ({
-        label: item,
-        value: item,
-      }))
+      const response = await themeCategoriesApi.getList()
+      console.log('📥 主题分类API响应:', response)
+      
+      // 响应可能被多次包装，需要逐层解包
+      let themesResponse = response?.data?.data || response?.data || response
+      console.log('📦 解包后的数据:', themesResponse)
+      console.log('📦 数据类型:', typeof themesResponse, Array.isArray(themesResponse))
+      
+      // 确保是数组
+      if (!Array.isArray(themesResponse)) {
+        console.error('❌ 主题数据不是数组:', themesResponse)
+        throw new Error('主题数据格式错误')
+      }
+      
+      // 只使用启用的二级分类
+      themeOptions.value = themesResponse
+        .filter(item => item.is_active && item.parent_id !== null)
+        .map(item => ({
+          label: item.name,
+          value: item.id,  // 使用ID作为值
+        }))
+      
+      console.log('✅ 处理后的主题选项:', themeOptions.value)
     } catch (error) {
-      console.error('获取思政主题失败:', error)
+      console.error('❌ 获取思政主题失败:', error)
       // 使用默认主题数据作为fallback
       themeOptions.value = [
-        "工匠精神", "创新精神", "团队协作", "责任担当", "诚信品质",
-        "法治意识", "科学精神", "人文素养", "家国情怀", "国际视野"
-      ].map(item => ({ label: item, value: item }))
+        { label: "工匠精神", value: 5 },
+        { label: "创新精神", value: 6 },
+        { label: "团队协作", value: 11 },
+        { label: "责任担当", value: 9 },
+        { label: "诚信品质", value: 8 },
+        { label: "法治意识", value: 10 },
+        { label: "科学精神", value: 7 },
+        { label: "人文素养", value: 13 },
+        { label: "家国情怀", value: 12 },
+        { label: "国际视野", value: 14 }
+      ]
     }
 
     // 获取课程列表
@@ -1133,6 +1193,7 @@ const handleChapterChange = async (chapterId) => {
 }
 
 const handleSearch = () => {
+  console.log('点击搜索按钮 - searchForm:', searchForm)
   pagination.page = 1
   fetchCases()
 }
@@ -1141,7 +1202,7 @@ const resetSearch = () => {
   Object.assign(searchForm, {
     keyword: '',
     software_engineering_chapter: null,
-    ideological_theme: null,
+    theme_category_id: null,
     case_type: null,
     difficulty_level: null,
     show_favorites_only: false,
@@ -1341,7 +1402,7 @@ const resetCaseForm = () => {
     title: '',
     content: '',
     software_engineering_chapter: null,
-    ideological_theme: null,
+    theme_category_id: null,
     case_type: null,
     difficulty_level: 3,
     key_points: [],
@@ -1361,6 +1422,13 @@ const resetCaseForm = () => {
 const editCase = async (case_item) => {
   editingCase.value = case_item
   Object.assign(caseForm, case_item)
+  
+  // 确保 theme_category_id 是数字类型
+  if (caseForm.theme_category_id) {
+    caseForm.theme_category_id = Number(caseForm.theme_category_id)
+  }
+  
+  console.log('编辑案例 - theme_category_id:', caseForm.theme_category_id, typeof caseForm.theme_category_id)
   
   // 如果有课程ID，加载对应的章节
   if (case_item.course_id) {
@@ -1638,7 +1706,7 @@ const exportCase = (case_item) => {
 ## 基本信息
 
 - **软件工程章节**: ${case_item.software_engineering_chapter}
-- **思政主题**: ${case_item.ideological_theme}
+- **思政主题**: ${case_item.theme_name || '-'}
 - **案例类型**: ${getCaseTypeLabel(case_item.case_type)}
 - **难度等级**: ${case_item.difficulty_level}/5
 - **评分**: ${case_item.rating.toFixed(1)} (${case_item.rating_count}人评价)

@@ -172,7 +172,7 @@
             <n-gi>
               <n-form-item label="思政主题" required>
                 <n-select
-                  v-model:value="caseForm.ideological_theme"
+                  v-model:value="caseForm.theme_category_id"
                   :options="themeOptions"
                   placeholder="请选择思政主题"
                   filterable
@@ -297,7 +297,7 @@ const currentSaveMessage = ref(null)
 const caseForm = reactive({
   title: '',
   software_engineering_chapter: '',
-  ideological_theme: '',
+  theme_category_id: null,
   case_type: 'case_study',
   tags: [],
   key_points: [],
@@ -495,7 +495,7 @@ async function handleSaveCase(messageObj) {
   Object.assign(caseForm, {
     title: '',
     software_engineering_chapter: '',
-    ideological_theme: '',
+    theme_category_id: null,
     case_type: 'case_study',
     tags: [],
     key_points: [],
@@ -540,7 +540,11 @@ async function autoFillCaseForm(content) {
   if (chapter) caseForm.software_engineering_chapter = chapter
 
   const theme = matchField(['思政主题', '主题'])
-  if (theme) caseForm.ideological_theme = theme
+  if (theme) {
+    // 查找匹配的主题ID
+    const matchedTheme = themeOptions.value.find(opt => opt.label === theme)
+    if (matchedTheme) caseForm.theme_category_id = matchedTheme.value
+  }
 
   const type = matchField(['案例类型'])
   if (type) caseForm.case_type = type
@@ -566,7 +570,12 @@ async function autoFillCaseForm(content) {
     caseForm.title = aiData.title || caseForm.title
     caseForm.software_engineering_chapter =
       aiData.software_engineering_chapter || aiData.chapter || caseForm.software_engineering_chapter
-    caseForm.ideological_theme = aiData.ideological_theme || aiData.theme || caseForm.ideological_theme
+    // 如果AI返回了主题名称，查找对应的ID
+    const themeName = aiData.ideological_theme || aiData.theme
+    if (themeName) {
+      const matchedTheme = themeOptions.value.find(opt => opt.label === themeName)
+      if (matchedTheme) caseForm.theme_category_id = matchedTheme.value
+    }
     caseForm.case_type = aiData.case_type || caseForm.case_type
     if (aiData.difficulty_level) caseForm.difficulty_level = aiData.difficulty_level
     if (Array.isArray(aiData.tags) && aiData.tags.length) caseForm.tags = aiData.tags
@@ -697,7 +706,7 @@ async function confirmSaveCase() {
   return new Promise(async (resolve, reject) => {
     try {
       // 验证必填字段
-      if (!caseForm.title || !caseForm.software_engineering_chapter || !caseForm.ideological_theme) {
+      if (!caseForm.title || !caseForm.software_engineering_chapter || !caseForm.theme_category_id) {
         message.error('请填写所有必填项')
         reject(new Error('缺少必填项'))
         return
@@ -707,7 +716,7 @@ async function confirmSaveCase() {
         title: caseForm.title.trim(),
         content: currentSaveMessage.value.content, // 直接使用消息内容
         software_engineering_chapter: caseForm.software_engineering_chapter,
-        ideological_theme: caseForm.ideological_theme,
+        theme_category_id: caseForm.theme_category_id,
         case_type: caseForm.case_type || 'case_study',
         tags: caseForm.tags || [],
         key_points: caseForm.key_points || [],
@@ -840,24 +849,43 @@ async function fetchOptions() {
   }
   
   try {
-    const response = await themeCategoriesApi.getNames()
-    const names = Array.isArray(response)
-      ? response
-      : Array.isArray(response?.data)
-        ? response.data
-        : Array.isArray(response?.items)
-          ? response.items
-          : []
-    themeOptions.value = names.map(item => ({
-      label: item,
-      value: item,
-    }))
+    const response = await themeCategoriesApi.getList()
+    console.log('📥 [Chat] 主题分类API响应:', response)
+    
+    // 响应可能被多次包装
+    let themesResponse = response?.data?.data || response?.data || response
+    console.log('📦 [Chat] 解包后的数据:', themesResponse, Array.isArray(themesResponse))
+    
+    // 确保是数组
+    if (!Array.isArray(themesResponse)) {
+      console.error('❗ [Chat] 主题数据不是数组')
+      throw new Error('主题数据格式错误')
+    }
+    
+    // 只使用启用的二级分类
+    themeOptions.value = themesResponse
+      .filter(item => item.is_active && item.parent_id !== null)
+      .map(item => ({
+        label: item.name,
+        value: item.id,  // 使用ID作为值
+      }))
+    
+    console.log('✅ [Chat] 处理后的主题选项:', themeOptions.value)
   } catch (error) {
-    console.error('获取主题选项失败:', error)
+    console.error('❗ [Chat] 获取主题选项失败:', error)
+    // 使用默认主题数据作为fallback
     themeOptions.value = [
-      '工匠精神', '创新精神', '团队协作', '责任担当', '诚信品质',
-      '法治意识', '科学精神', '人文素养', '家国情怀', '国际视野'
-    ].map(item => ({ label: item, value: item }))
+      { label: '工匠精神', value: 5 },
+      { label: '创新精神', value: 6 },
+      { label: '团队协作', value: 11 },
+      { label: '责任担当', value: 9 },
+      { label: '诚信品质', value: 8 },
+      { label: '法治意识', value: 10 },
+      { label: '科学精神', value: 7 },
+      { label: '人文素养', value: 13 },
+      { label: '家国情怀', value: 12 },
+      { label: '国际视野', value: 14 }
+    ]
   }
 
   // 课程章节（含描述）从课程管理获取

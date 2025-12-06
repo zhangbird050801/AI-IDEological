@@ -7,7 +7,7 @@ class IdeologicalCaseBase(BaseModel):
     title: str = Field(..., description="案例标题")
     content: str = Field(..., description="案例内容")
     software_engineering_chapter: str = Field(..., description="软件工程章节")
-    ideological_theme: str = Field(..., description="思政主题")
+    theme_category_id: Optional[int] = Field(None, description="思政主题分类ID")
     case_type: str = Field(..., description="案例类型")
     tags: List[str] = Field(default=[], description="标签列表")
     key_points: List[str] = Field(default=[], description="关键知识点")
@@ -25,7 +25,7 @@ class IdeologicalCaseUpdate(BaseModel):
     title: Optional[str] = Field(None, description="案例标题")
     content: Optional[str] = Field(None, description="案例内容")
     software_engineering_chapter: Optional[str] = Field(None, description="软件工程章节")
-    ideological_theme: Optional[str] = Field(None, description="思政主题")
+    theme_category_id: Optional[int] = Field(None, description="思政主题分类ID")
     case_type: Optional[str] = Field(None, description="案例类型")
     tags: Optional[List[str]] = Field(None, description="标签列表")
     key_points: Optional[List[str]] = Field(None, description="关键知识点")
@@ -53,7 +53,10 @@ class IdeologicalCaseInDB(IdeologicalCaseBase):
 
 
 class IdeologicalCase(IdeologicalCaseInDB):
-    pass
+    theme_name: Optional[str] = Field(None, description="思政主题名称（从外键关联获取）")
+    
+    class Config:
+        from_attributes = True
 
 
 class PromptTemplateBase(BaseModel):
@@ -64,7 +67,7 @@ class PromptTemplateBase(BaseModel):
     variables: List[str] = Field(default=[], description="模板变量")
     category: str = Field(..., description="分类")
     software_engineering_chapter: Optional[str] = Field(None, description="适用章节")
-    ideological_theme: Optional[str] = Field(None, description="思政主题")
+    theme_category_id: Optional[int] = Field(None, description="思政主题分类ID")
     is_active: bool = Field(default=True, description="是否启用")
 
 
@@ -80,7 +83,7 @@ class PromptTemplateUpdate(BaseModel):
     variables: Optional[List[str]] = Field(None, description="模板变量")
     category: Optional[str] = Field(None, description="分类")
     software_engineering_chapter: Optional[str] = Field(None, description="适用章节")
-    ideological_theme: Optional[str] = Field(None, description="思政主题")
+    theme_category_id: Optional[int] = Field(None, description="思政主题分类ID")
     is_active: Optional[bool] = Field(None, description="是否启用")
 
 
@@ -115,7 +118,7 @@ class TeachingResourceBase(BaseModel):
     file_format: Optional[str] = Field(None, description="文件格式")
     tags: List[str] = Field(default=[], description="标签列表")
     software_engineering_chapter: Optional[str] = Field(None, description="适用章节")
-    ideological_theme: Optional[str] = Field(None, description="思政主题")
+    theme_category_id: Optional[int] = Field(None, description="思政主题分类ID")
     is_public: bool = Field(default=True, description="是否公开")
 
 
@@ -136,7 +139,7 @@ class TeachingResourceUpdate(BaseModel):
     file_format: Optional[str] = Field(None, description="文件格式")
     tags: Optional[List[str]] = Field(None, description="标签列表")
     software_engineering_chapter: Optional[str] = Field(None, description="适用章节")
-    ideological_theme: Optional[str] = Field(None, description="思政主题")
+    theme_category_id: Optional[int] = Field(None, description="思政主题分类ID")
     is_public: Optional[bool] = Field(None, description="是否公开")
 
 
@@ -166,7 +169,7 @@ class GenerationHistoryBase(BaseModel):
     generated_content: str = Field(..., description="生成内容")
     generation_type: str = Field(..., description="生成类型")
     software_engineering_chapter: Optional[str] = Field(None, description="软件工程章节")
-    ideological_theme: Optional[str] = Field(None, description="思政主题")
+    theme_category_id: Optional[int] = Field(None, description="思政主题分类ID")
 
 
 class GenerationHistoryCreate(GenerationHistoryBase):
@@ -248,7 +251,7 @@ class UserRating(UserRatingBase):
 class CaseSearchRequest(BaseModel):
     keyword: Optional[str] = Field(None, description="关键词")
     software_engineering_chapter: Optional[str] = Field(None, description="软件工程章节")
-    ideological_theme: Optional[str] = Field(None, description="思政主题")
+    theme_category_id: Optional[int] = Field(None, description="思政主题分类ID")
     case_type: Optional[str] = Field(None, description="案例类型")
     tags: Optional[List[str]] = Field(None, description="标签")
     difficulty_level: Optional[int] = Field(None, ge=1, le=5, description="难度等级")
@@ -262,7 +265,7 @@ class TemplateSearchRequest(BaseModel):
     template_type: Optional[str] = Field(None, description="模板类型")
     category: Optional[str] = Field(None, description="分类")
     software_engineering_chapter: Optional[str] = Field(None, description="适用章节")
-    ideological_theme: Optional[str] = Field(None, description="思政主题")
+    theme_category_id: Optional[int] = Field(None, description="思政主题分类ID")
     is_active: Optional[bool] = Field(None, description="是否启用")
     page: int = Field(default=1, ge=1, description="页码")
     page_size: int = Field(default=10, ge=1, le=100, description="每页数量")
@@ -272,7 +275,7 @@ class ResourceSearchRequest(BaseModel):
     keyword: Optional[str] = Field(None, description="关键词")
     resource_type: Optional[str] = Field(None, description="资源类型")
     software_engineering_chapter: Optional[str] = Field(None, description="适用章节")
-    ideological_theme: Optional[str] = Field(None, description="思政主题")
+    theme_category_id: Optional[int] = Field(None, description="思政主题分类ID")
     tags: Optional[List[str]] = Field(None, description="标签")
     is_public: Optional[bool] = Field(None, description="是否公开")
     page: int = Field(default=1, ge=1, description="页码")
@@ -285,7 +288,7 @@ class AIGCGenerationRequest(BaseModel):
     template_variables: Optional[dict] = Field(None, description="模板变量")
     generation_type: str = Field(default="case", description="生成类型")
     software_engineering_chapter: Optional[str] = Field(None, description="软件工程章节")
-    ideological_theme: Optional[str] = Field(None, description="思政主题")
+    theme_category_id: Optional[int] = Field(None, description="思政主题分类ID")
     use_stream: bool = Field(default=True, description="是否使用流式生成")
 
 

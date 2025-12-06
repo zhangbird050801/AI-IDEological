@@ -116,8 +116,8 @@
           <n-descriptions-item label="软件工程章节" v-if="resource?.software_engineering_chapter">
             {{ resource.software_engineering_chapter }}
           </n-descriptions-item>
-          <n-descriptions-item label="思政主题" v-if="resource?.ideological_theme">
-            {{ resource.ideological_theme }}
+          <n-descriptions-item label="思政主题" v-if="resource?.theme_name">
+            {{ resource.theme_name }}
           </n-descriptions-item>
           <n-descriptions-item label="上传时间" :span="2">
             {{ formatDate(resource?.created_at) }}

@@ -107,7 +107,11 @@ export const themeCategoriesApi = {
   // 删除分类
   delete: (id) => request.delete(`/ideological/theme-categories/${id}`),
   // 移动分类（拖拽）
-  move: (id, data = {}) => request.post(`/ideological/theme-categories/${id}/move`, {}, { params: data }),
+  move: (id, data = {}) => request.post(`/ideological/theme-categories/${id}/move`, data),
+  // 获取案例数量统计
+  getCaseCountStats: () => request.get('/ideological/theme-categories/stats/case-count'),
+  // 获取某个分类的案例列表
+  getCategoryCases: (id) => request.get(`/ideological/theme-categories/${id}/cases`),
 }
 
 // 提示词助手相关API

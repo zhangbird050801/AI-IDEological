@@ -26,10 +26,12 @@
         <theme-category-tree
           :data="categories"
           :expand-all="expandAll"
+          :case-count="caseCountStats"
           @edit="handleEdit"
           @delete="handleDelete"
           @add-child="handleAdd"
           @move="handleMove"
+          @view-cases="handleViewCases"
         />
         
         <n-empty
@@ -69,7 +71,7 @@
         </n-form-item>
 
         <n-form-item label="父分类" path="parent_id">
-          <n-tree-select
+          <n-select
             v-model:value="formData.parent_id"
             :options="parentOptions"
             placeholder="请选择父分类（不选则为根分类）"
@@ -101,6 +103,75 @@
         </n-space>
       </template>
     </n-modal>
+
+    <!-- 查看案例列表弹窗 -->
+    <n-modal
+      v-model:show="showCasesModal"
+      :title="`${currentCategoryName} - 案例列表`"
+      preset="card"
+      style="width: 900px; max-height: 80vh"
+      :mask-closable="true"
+    >
+      <n-spin :show="casesLoading">
+        <n-list hoverable clickable>
+          <n-list-item v-for="case_item in categoryCases" :key="case_item.id" @click="viewCaseDetail(case_item)">
+            <n-thing>
+              <template #header>
+                <n-space align="center">
+                  <span>{{ case_item.title }}</span>
+                  <n-tag size="small" type="info">{{ case_item.software_engineering_chapter }}</n-tag>
+                  <n-tag size="small">{{ case_item.case_type }}</n-tag>
+                  <n-rate :value="case_item.difficulty_level" readonly size="small" :count="5" />
+                </n-space>
+              </template>
+              <template #description>
+                {{ case_item.content }}
+              </template>
+              <template #footer>
+                <n-space size="small">
+                  <n-text depth="3">评分: {{ case_item.rating.toFixed(1) }}</n-text>
+                  <n-text depth="3">使用: {{ case_item.usage_count }}次</n-text>
+                  <n-text depth="3">{{ case_item.is_public ? '公开' : '私有' }}</n-text>
+                </n-space>
+              </template>
+            </n-thing>
+          </n-list-item>
+        </n-list>
+        
+        <n-empty
+          v-if="!casesLoading && categoryCases.length === 0"
+          description="该分类下暂无案例"
+          style="margin-top: 20px"
+        />
+      </n-spin>
+    </n-modal>
+
+    <!-- 案例详情弹窗 -->
+    <n-modal
+      v-model:show="showCaseDetailModal"
+      title="案例详情"
+      preset="card"
+      style="width: 800px; max-height: 80vh"
+      :mask-closable="true"
+    >
+      <div v-if="currentCase">
+        <n-descriptions :column="2" bordered>
+          <n-descriptions-item label="标题">{{ currentCase.title }}</n-descriptions-item>
+          <n-descriptions-item label="章节">{{ currentCase.software_engineering_chapter }}</n-descriptions-item>
+          <n-descriptions-item label="类型">{{ currentCase.case_type }}</n-descriptions-item>
+          <n-descriptions-item label="难度">
+            <n-rate :value="currentCase.difficulty_level" readonly size="small" :count="5" />
+          </n-descriptions-item>
+          <n-descriptions-item label="评分">{{ currentCase.rating.toFixed(1) }}</n-descriptions-item>
+          <n-descriptions-item label="使用次数">{{ currentCase.usage_count }}</n-descriptions-item>
+        </n-descriptions>
+        
+        <n-divider />
+        
+        <n-text strong>案例内容：</n-text>
+        <div style="margin-top: 12px; white-space: pre-wrap;">{{ currentCase.content }}</div>
+      </div>
+    </n-modal>
   </div>
 </template>
 
@@ -108,7 +179,9 @@
 import { ref, computed, onMounted } from 'vue'
 import { 
   NCard, NButton, NSpace, NIcon, NSpin, NEmpty, NModal, NForm, 
-  NFormItem, NInput, NInputNumber, NTreeSelect, NSwitch, useMessage, useDialog 
+  NFormItem, NInput, NInputNumber, NSelect, NSwitch, NList, NListItem,
+  NThing, NTag, NRate, NText, NDescriptions, NDescriptionsItem, NDivider,
+  useMessage, useDialog 
 } from 'naive-ui'
 import { Icon } from '@iconify/vue'
 import ThemeCategoryTree from '@/components/theme/ThemeCategoryTree.vue'
@@ -121,6 +194,17 @@ const dialog = useDialog()
 const categories = ref([])
 const loading = ref(false)
 const expandAll = ref(true)
+const caseCountStats = ref({})
+
+// 案例列表相关
+const showCasesModal = ref(false)
+const casesLoading = ref(false)
+const categoryCases = ref([])
+const currentCategoryName = ref('')
+
+// 案例详情相关
+const showCaseDetailModal = ref(false)
+const currentCase = ref(null)
 
 // 弹窗状态
 const showModal = ref(false)
@@ -146,22 +230,20 @@ const formRules = {
   ]
 }
 
-// 父分类选项
+// 父分类选项（只显示根分类）
 const parentOptions = computed(() => {
-  return convertToSelectOptions(categories.value, formData.value.id)
-})
-
-// 转换为树选择器选项
-function convertToSelectOptions(data, excludeId = null) {
-  return data
-    .filter(item => item.id !== excludeId)
+  // categories.value 是树形结构，第一层就是根分类
+  const options = categories.value
+    .filter(item => item.id !== formData.value.id) // 排除当前编辑的分类
     .map(item => ({
       label: item.name,
       value: item.id,
-      disabled: !item.is_active,
-      children: item.children ? convertToSelectOptions(item.children, excludeId) : undefined
+      disabled: !item.is_active
     }))
-}
+  
+  console.log('📁 [ThemeCategory] 父分类选项:', options)
+  return options
+})
 
 // 获取分类树
 async function fetchCategories() {
@@ -169,11 +251,24 @@ async function fetchCategories() {
     loading.value = true
     const response = await themeCategoriesApi.getTree()
     categories.value = response.data || response
+    
+    // 同时获取案例数量统计
+    await fetchCaseCountStats()
   } catch (error) {
     console.error('获取分类失败:', error)
     message.error('获取分类失败')
   } finally {
     loading.value = false
+  }
+}
+
+// 获取案例数量统计
+async function fetchCaseCountStats() {
+  try {
+    const response = await themeCategoriesApi.getCaseCountStats()
+    caseCountStats.value = response.data || response
+  } catch (error) {
+    console.error('获取案例数量统计失败:', error)
   }
 }
 
@@ -281,6 +376,31 @@ async function handleSubmit() {
   } finally {
     submitting.value = false
   }
+}
+
+// 查看某个分类的案例列表
+async function handleViewCases(categoryId) {
+  try {
+    casesLoading.value = true
+    showCasesModal.value = true
+    
+    const response = await themeCategoriesApi.getCategoryCases(categoryId)
+    const data = response.data || response
+    
+    currentCategoryName.value = data.category?.name || '未知分类'
+    categoryCases.value = data.cases || []
+  } catch (error) {
+    console.error('获取案例列表失败:', error)
+    message.error('获取案例列表失败')
+  } finally {
+    casesLoading.value = false
+  }
+}
+
+// 查看案例详情
+function viewCaseDetail(case_item) {
+  currentCase.value = case_item
+  showCaseDetailModal.value = true
 }
 
 // 初始化

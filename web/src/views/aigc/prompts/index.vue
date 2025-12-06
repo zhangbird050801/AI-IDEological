@@ -466,20 +466,45 @@ const fetchOptions = async () => {
       ].map(item => ({ label: item, value: item }))
     }
 
-    // 获取主题选项（从数据库读取）
+    // 获取主题选项（从数据库读取）- 使用ID和名称
     try {
-      const themesResponse = await themeCategoriesApi.getNames()
-      themeOptions.value = themesResponse.map(item => ({
-        label: item,
-        value: item,
-      }))
+      const response = await themeCategoriesApi.getList()
+      console.log('📥 [Prompts] 主题分类API响应:', response)
+      
+      // 响应可能被多次包装
+      let themesResponse = response?.data?.data || response?.data || response
+      console.log('📦 [Prompts] 解包后的数据:', themesResponse, Array.isArray(themesResponse))
+      
+      // 确保是数组
+      if (!Array.isArray(themesResponse)) {
+        console.error('❌ [Prompts] 主题数据不是数组')
+        throw new Error('主题数据格式错误')
+      }
+      
+      // 只使用启用的二级分类
+      themeOptions.value = themesResponse
+        .filter(item => item.is_active && item.parent_id !== null)
+        .map(item => ({
+          label: item.name,
+          value: item.id,  // 使用ID作为值
+        }))
+      
+      console.log('✅ [Prompts] 处理后的主题选项:', themeOptions.value)
     } catch (error) {
-      console.error('获取思政主题失败:', error)
+      console.error('❌ [Prompts] 获取思政主题失败:', error)
       // 使用默认主题数据作为fallback
       themeOptions.value = [
-        "工匠精神", "创新精神", "团队协作", "责任担当", "诚信品质",
-        "法治意识", "科学精神", "人文素养", "家国情怀", "国际视野"
-      ].map(item => ({ label: item, value: item }))
+        { label: "工匠精神", value: 5 },
+        { label: "创新精神", value: 6 },
+        { label: "团队协作", value: 11 },
+        { label: "责任担当", value: 9 },
+        { label: "诚信品质", value: 8 },
+        { label: "法治意识", value: 10 },
+        { label: "科学精神", value: 7 },
+        { label: "人文素养", value: 13 },
+        { label: "家国情怀", value: 12 },
+        { label: "国际视野", value: 14 }
+      ]
     }
   } catch (error) {
     message.error('获取选项数据失败')

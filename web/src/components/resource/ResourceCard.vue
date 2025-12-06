@@ -41,8 +41,8 @@
           <n-tag v-if="resource.software_engineering_chapter" size="small" type="info" :bordered="false">
             {{ resource.software_engineering_chapter }}
           </n-tag>
-          <n-tag v-if="resource.ideological_theme" size="small" type="success" :bordered="false">
-            {{ resource.ideological_theme }}
+          <n-tag v-if="resource.theme_name" size="small" type="success" :bordered="false">
+            {{ resource.theme_name }}
           </n-tag>
           <n-tag v-for="tag in resource.tags?.slice(0, 2)" :key="tag" size="small" :bordered="false">
             {{ tag }}

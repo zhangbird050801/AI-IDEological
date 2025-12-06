@@ -57,8 +57,8 @@ class TemplateService(CRUDBase[PromptTemplateModel, PromptTemplateCreate, Prompt
         if search_request.software_engineering_chapter:
             query = query.filter(software_engineering_chapter__icontains=search_request.software_engineering_chapter)
 
-        if search_request.ideological_theme:
-            query = query.filter(ideological_theme__icontains=search_request.ideological_theme)
+        if search_request.theme_category_id:
+            query = query.filter(theme_category_id=search_request.theme_category_id)
 
         # 排序：按评分倒序，按使用次数倒序，系统模板优先
         query = query.order_by("-is_system", "-rating", "-usage_count")
@@ -122,7 +122,7 @@ async def get_templates(
     template_type: str = Query(None, description="模板类型"),
     category: str = Query(None, description="分类"),
     software_engineering_chapter: str = Query(None, description="适用章节"),
-    ideological_theme: str = Query(None, description="思政主题"),
+    theme_category_id: int = Query(None, description="思政主题分类ID"),
     page: int = Query(1, ge=1, description="页码"),
     page_size: int = Query(10, ge=1, le=100, description="每页数量"),
     current_user: User = Depends(AuthControl.is_authed)
@@ -132,7 +132,7 @@ async def get_templates(
         template_type=template_type,
         category=category,
         software_engineering_chapter=software_engineering_chapter,
-        ideological_theme=ideological_theme,
+        theme_category_id=theme_category_id,
         page=page,
         page_size=page_size
     )
