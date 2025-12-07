@@ -113,6 +113,7 @@
       :mask-closable="true"
     >
       <n-spin :show="casesLoading">
+        <n-scrollbar style="max-height: 60vh">
         <n-list hoverable clickable>
           <n-list-item v-for="case_item in categoryCases" :key="case_item.id" @click="viewCaseDetail(case_item)">
             <n-thing>
@@ -137,6 +138,7 @@
             </n-thing>
           </n-list-item>
         </n-list>
+        </n-scrollbar>
         
         <n-empty
           v-if="!casesLoading && categoryCases.length === 0"
@@ -181,7 +183,7 @@ import {
   NCard, NButton, NSpace, NIcon, NSpin, NEmpty, NModal, NForm, 
   NFormItem, NInput, NInputNumber, NSelect, NSwitch, NList, NListItem,
   NThing, NTag, NRate, NText, NDescriptions, NDescriptionsItem, NDivider,
-  useMessage, useDialog 
+  NScrollbar, useMessage, useDialog 
 } from 'naive-ui'
 import { Icon } from '@iconify/vue'
 import ThemeCategoryTree from '@/components/theme/ThemeCategoryTree.vue'
