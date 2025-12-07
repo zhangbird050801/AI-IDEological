@@ -317,6 +317,27 @@ const caseTypeOptions = [
   { label: '实践项目', value: 'practice' },
 ]
 
+// 有效的case_type枚举值集合
+const validCaseTypeValues = new Set(caseTypeOptions.map(opt => opt.value))
+
+// 验证并映射case_type，如果无效则返回null
+function validateCaseType(type) {
+  if (!type) return null
+  // 如果已经是有效的枚举值，直接返回
+  if (validCaseTypeValues.has(type)) return type
+  // 尝试根据label匹配
+  const matched = caseTypeOptions.find(opt => opt.label === type)
+  if (matched) return matched.value
+  // 尝试模糊匹配
+  const lowerType = type.toLowerCase()
+  if (lowerType.includes('案例') || lowerType.includes('case')) return 'case_study'
+  if (lowerType.includes('讨论')) return 'discussion'
+  if (lowerType.includes('思考')) return 'thinking'
+  if (lowerType.includes('示例')) return 'example'
+  if (lowerType.includes('实践') || lowerType.includes('项目') || lowerType.includes('practice')) return 'practice'
+  return null
+}
+
 // 处理发送消息
 async function handleSendMessage(data) {
   const userMessage = {
@@ -547,7 +568,10 @@ async function autoFillCaseForm(content) {
   }
 
   const type = matchField(['案例类型'])
-  if (type) caseForm.case_type = type
+  if (type) {
+    const validType = validateCaseType(type)
+    if (validType) caseForm.case_type = validType
+  }
 
   const level = matchField(['难度等级', '难度'])
   if (level) {
@@ -576,7 +600,8 @@ async function autoFillCaseForm(content) {
       const matchedTheme = themeOptions.value.find(opt => opt.label === themeName)
       if (matchedTheme) caseForm.theme_category_id = matchedTheme.value
     }
-    caseForm.case_type = aiData.case_type || caseForm.case_type
+    const validAiCaseType = validateCaseType(aiData.case_type)
+    if (validAiCaseType) caseForm.case_type = validAiCaseType
     if (aiData.difficulty_level) caseForm.difficulty_level = aiData.difficulty_level
     if (Array.isArray(aiData.tags) && aiData.tags.length) caseForm.tags = aiData.tags
     if (Array.isArray(aiData.key_points) && aiData.key_points.length) caseForm.key_points = aiData.key_points

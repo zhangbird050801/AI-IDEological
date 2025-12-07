@@ -1,5 +1,6 @@
 from typing import List, Optional
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Body
+from pydantic import BaseModel
 from app.controllers.theme_category_controller import theme_category_controller
 from app.schemas.theme_category import (
     ThemeCategoryCreate,
@@ -92,16 +93,21 @@ async def delete_category(
         raise HTTPException(status_code=400, detail=str(e))
 
 
+class MoveCategoryRequest(BaseModel):
+    """移动分类请求体"""
+    parent_id: Optional[int] = None
+    order: int = 0
+
+
 @router.post("/{category_id}/move", summary="移动分类")
 async def move_category(
     category_id: int,
-    parent_id: Optional[int] = None,
-    order: int = 0,
+    move_data: MoveCategoryRequest,
     current_user: User = Depends(AuthControl.is_authed)
 ):
     """移动分类（拖拽排序）"""
     try:
-        return await theme_category_controller.move(category_id, parent_id, order)
+        return await theme_category_controller.move(category_id, move_data.parent_id, move_data.order)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
