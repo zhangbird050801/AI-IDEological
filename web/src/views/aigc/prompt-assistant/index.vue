@@ -37,20 +37,16 @@
                   </n-icon>
                   <h3>欢迎使用提示词助手</h3>
                   <p>告诉我你想要制作什么类型的提示词，我会帮你生成高质量的提示词模板</p>
-                  <div class="quick-start-buttons">
-                    <n-space wrap>
-                      <n-button
-                        v-for="example in quickStartExamples"
-                        :key="example.title"
-                        @click="sendQuickStart(example.message)"
-                        dashed
-                      >
-                        {{ example.title }}
-                      </n-button>
-                    </n-space>
-                  </div>
                   <div class="preset-panel">
                     <n-space wrap align="center">
+                      <n-select
+                        v-model:value="presetForm.course_id"
+                        placeholder="预设课程"
+                        :options="courseOptions"
+                        clearable
+                        style="min-width: 180px"
+                        @update:value="handleCourseChange"
+                      />
                       <n-select
                         v-model:value="presetForm.software_engineering_chapter"
                         placeholder="预设软件工程章节"
@@ -498,9 +494,11 @@ const themeOptions = ref([])
 const knowledgePointOptions = ref([])
 const chapterIdMap = ref({})
 const courseIdForPreset = ref(null)
+const courseOptions = ref([])
 
 // 预设表单
 const presetForm = reactive({
+  course_id: null,
   software_engineering_chapter: null,
   knowledge_point: null,
   ideological_theme: null,
@@ -529,57 +527,39 @@ const templateFormRules = {
 
 // 提取的变量
 const extractedVariables = computed(() => {
-  const matches = templateForm.template_content.match(/\{\{(\w+)\}\}/g)
+  const matches = templateForm.template_content.match(/\{\{\s*([^}]+?)\s*\}\}/g)
   if (!matches) return []
-  return [...new Set(matches.map(match => match.slice(2, -2)))]
+  return [
+    ...new Set(
+      matches
+        .map(match => match.replace(/^\{\{\s*|\s*\}\}$/g, '').trim())
+        .filter(Boolean)
+    )
+  ]
 })
 
 // 快速开始示例
-const quickStartExamples = ref([
-  {
-    title: '写作助手',
-    message: '帮我制作一个写作助手的提示词，可以帮我写各种类型的文章'
-  },
-  {
-    title: '代码审查',
-    message: '我需要一个提示词来帮助审查代码，找出潜在问题和改进建议'
-  },
-  {
-    title: '学习计划',
-    message: '制作一个个性化的学习计划生成提示词，考虑学习目标和时间安排'
-  },
-  {
-    title: '创意故事',
-    message: '帮我制作一个创意故事生成的提示词，能够根据主题生成有趣的故事'
-  }
-])
+const quickStartExamples = ref([])
 
-// 知识点默认映射
-const knowledgePointMap = {
-  '软件工程概述': ['软件工程特性', '生命周期', '角色职责'],
-  '软件过程模型': ['瀑布模型', '迭代模型', '敏捷开发'],
-  '需求分析': ['需求获取', '用例建模', '需求验证'],
-  '系统设计': ['架构设计', '模块划分', '接口设计'],
-  '编码实现': ['代码规范', '单元测试', '版本控制'],
-  '软件测试': ['测试计划', '测试用例设计', '缺陷管理'],
-  '软件维护': ['重构', '代码审计', '持续集成'],
-  '项目管理': ['进度管理', '风险管理', '团队协作'],
-  '软件质量': ['质量度量', '评审', '质量保证'],
-  '软件工程前沿': ['DevOps', '云原生', 'AI辅助开发'],
-}
+// 知识点默认映射已由后端提供，前端仅在无数据时使用空兜底
+const knowledgePointMap = {}
 
 const loadChaptersAndKnowledge = async () => {
   try {
-    // 取一个课程ID用于获取章节/知识点，优先使用激活课程
+    // 取课程列表
     const coursesResp = await courseApi.getAllCourses(true)
     const courses = coursesResp?.data || coursesResp || []
     if (Array.isArray(courses) && courses.length > 0) {
-      courseIdForPreset.value = courses[0].id
+      courseOptions.value = courses.map(c => ({ label: c.name, value: c.id }))
+      if (!presetForm.course_id) {
+        courseIdForPreset.value = courses[0].id
+        presetForm.course_id = courses[0].id
+      }
     }
 
     // 拉取章节（包含ID）用于知识点查询
-    if (courseIdForPreset.value) {
-      const chaptersResp = await courseApi.getChaptersByCourse(courseIdForPreset.value)
+    if (presetForm.course_id) {
+      const chaptersResp = await courseApi.getChaptersByCourse(presetForm.course_id)
       const chapters = chaptersResp?.data || chaptersResp || []
       chapterOptions.value = chapters.map(ch => ({ label: ch.name, value: ch.id }))
       chapterIdMap.value = chapters.reduce((map, ch) => {
@@ -588,34 +568,19 @@ const loadChaptersAndKnowledge = async () => {
       }, {})
     }
 
-    // 如果未获取到章节，使用默认值
-    if (chapterOptions.value.length === 0) {
-      chapterOptions.value = [
-        "软件工程概述", "软件过程模型", "需求分析", "系统设计", "编码实现",
-        "软件测试", "软件维护", "项目管理", "软件质量", "软件工程前沿"
-      ].map(item => ({ label: item, value: item }))
-    }
-
-    // 初始化知识点选项
+    // 初始化知识点选项（仅在有章节数据时）
     const initialChapterId = presetForm.software_engineering_chapter || chapterOptions.value?.[0]?.value
     if (initialChapterId) {
       await fetchKnowledgePoints(initialChapterId)
+    } else {
+      knowledgePointOptions.value = []
     }
   } catch (error) {
     console.error('❗ [PromptAssistant] 加载章节/知识点失败:', error)
-    // 兜底：保持默认章节/知识点映射
-    chapterOptions.value = [
-      "软件工程概述", "软件过程模型", "需求分析", "系统设计", "编码实现",
-      "软件测试", "软件维护", "项目管理", "软件质量", "软件工程前沿"
-    ].map(item => ({ label: item, value: item }))
-    chapterIdMap.value = chapterOptions.value.reduce((map, ch) => {
-      map[ch.value] = ch.label
-      return map
-    }, {})
-    knowledgePointOptions.value = (knowledgePointMap[chapterOptions.value?.[0]?.value] || []).map(item => ({
-      label: item,
-      value: item,
-    }))
+    // 兜底：避免抛错但不提供硬编码数据
+    chapterOptions.value = []
+    chapterIdMap.value = {}
+    knowledgePointOptions.value = []
   }
 }
 
@@ -637,12 +602,8 @@ const fetchKnowledgePoints = async (chapterId) => {
     }
   }
 
-  // 后端无数据或失败，使用本地映射兜底
-  const chapterName = chapterIdMap.value?.[chapterId]
-  knowledgePointOptions.value = (knowledgePointMap[chapterName] || []).map(item => ({
-    label: item,
-    value: item,
-  }))
+  // 后端无数据或失败，兜底为空列表
+  knowledgePointOptions.value = []
 }
 
 // 阶段标签映射
@@ -818,28 +779,96 @@ const getOptionLabel = (options, value) => {
 
 const getChapterLabelById = (id) => chapterIdMap.value?.[id] || getOptionLabel(chapterOptions, id)
 
-const applyPresetToInput = () => {
-  const parts = []
-  if (presetForm.software_engineering_chapter) {
-    parts.push(`软件工程章节：${getChapterLabelById(presetForm.software_engineering_chapter)}`)
-  }
-  if (presetForm.knowledge_point) {
-    parts.push(`知识点：${getOptionLabel(knowledgePointOptions, presetForm.knowledge_point)}`)
-  }
-  if (presetForm.ideological_theme) {
-    parts.push(`思政主题：${getOptionLabel(themeOptions, presetForm.ideological_theme)}`)
+const matchOptionValueByLabel = (options, text) => {
+  if (!text) return null
+  const list = Array.isArray(options?.value) ? options.value : options
+  const hit = list?.find?.(opt =>
+    opt?.label === text ||
+    opt?.label?.includes?.(text) ||
+    text?.includes?.(opt?.label)
+  )
+  return hit?.value || null
+}
+
+const splitSegments = (raw) => (raw || '')
+  .split(/[、，,;；\n]/)
+  .map(item => item.trim())
+  .filter(Boolean)
+
+const extractPromptMeta = (promptContent = '') => {
+  const meta = {
+    chapters: [],
+    knowledgePoints: [],
+    themes: [],
+    deliverables: [],
+    variables: [],
   }
 
-  if (parts.length === 0) {
+  const chapterMatches = promptContent.match(/(?:软件工程)?章节[:：]\s*([^\n；;]+)/g)
+  chapterMatches?.forEach(match => {
+    const value = match.split(/[:：]/)[1]
+    meta.chapters.push(...splitSegments(value))
+  })
+
+  const kpMatches = promptContent.match(/(?:知识点|适用知识点|核心知识点)[:：]\s*([^\n；;]+)/g)
+  kpMatches?.forEach(match => {
+    const value = match.split(/[:：]/)[1]
+    meta.knowledgePoints.push(...splitSegments(value))
+  })
+
+  const themeMatches = promptContent.match(/(?:思政主题|价值观|思政元素)[:：]\s*([^\n；;]+)/g)
+  themeMatches?.forEach(match => {
+    const value = match.split(/[:：]/)[1]
+    meta.themes.push(...splitSegments(value))
+  })
+
+  const deliverableMatches = promptContent.match(/(?:输出格式|交付物|产出|最终输出)[:：]\s*([^\n；;]+)/g)
+  deliverableMatches?.forEach(match => {
+    const value = match.split(/[:：]/)[1]
+    meta.deliverables.push(...splitSegments(value))
+  })
+
+  const variableMatches = promptContent.match(/\{\{([^}]+)\}\}/g)
+  if (variableMatches) {
+    meta.variables = [...new Set(variableMatches.map(v => v.slice(2, -2).trim()).filter(Boolean))]
+  }
+
+  return meta
+}
+
+const handleCourseChange = async (courseId) => {
+  presetForm.course_id = courseId
+  presetForm.software_engineering_chapter = null
+  presetForm.knowledge_point = null
+  chapterOptions.value = []
+  knowledgePointOptions.value = []
+  if (courseId) {
+    await loadChaptersAndKnowledge()
+  }
+}
+
+const applyPresetToInput = () => {
+  const chapterLabel = presetForm.software_engineering_chapter
+    ? getChapterLabelById(presetForm.software_engineering_chapter)
+    : ''
+  const knowledgeLabel = presetForm.knowledge_point
+    ? getOptionLabel(knowledgePointOptions, presetForm.knowledge_point)
+    : ''
+  const themeLabel = presetForm.ideological_theme
+    ? getOptionLabel(themeOptions, presetForm.ideological_theme)
+    : ''
+
+  if (!chapterLabel && !knowledgeLabel && !themeLabel) {
     message.warning('请选择至少一项预设内容')
     return
   }
 
-  const presetText = parts.join('；')
+  const presetText = `请基于《软件工程》${chapterLabel ? `的${chapterLabel}章节` : ''}${knowledgeLabel ? `（知识点：${knowledgeLabel}）` : ''}${themeLabel ? `，强调${themeLabel}思政主题` : ''}，生成一段可直接喂给LLM的提示词模板。提示词应包含：1）课堂背景与受众；2）技术知识点与思政融入点；3）期望产出/输出格式（案例/讨论题/教学设计等，条目或表格均可）；4）可替换变量用{{变量名}}标记；5）2-3条学生讨论或实践指令。`
+
   inputMessage.value = inputMessage.value
     ? `${inputMessage.value.trim()}\n${presetText}`
     : presetText
-  message.success('已填入预设内容，可继续补充需求后发送')
+  message.success('已填入更详细的预设，可直接发送或继续补充需求')
 }
 
 const resetPreset = () => {
@@ -963,7 +992,8 @@ const saveAsTemplate = (promptContent) => {
   })
 
   // 自动提取变量
-  templateForm.variables = extractedVariables.value
+  const meta = extractPromptMeta(promptContent)
+  templateForm.variables = meta.variables.length > 0 ? meta.variables : extractedVariables.value
 
   // 🔧 增强：智能分析提示词内容
   const userRequests = messages.value
@@ -988,16 +1018,46 @@ const saveAsTemplate = (promptContent) => {
     }
   }
 
+  // 🔧 增强：基于提示词内容提取章节/主题并反填
+  if (meta.chapters.length > 0) {
+    templateForm.software_engineering_chapter = matchOptionValueByLabel(chapterOptions, meta.chapters[0]) || meta.chapters[0]
+  }
+  if (meta.themes.length > 0) {
+    templateForm.theme_category_id = matchOptionValueByLabel(themeOptions, meta.themes[0]) || templateForm.theme_category_id
+  }
+  // 若提取失败，回退使用当前预设选择
+  if (!templateForm.software_engineering_chapter && presetForm.software_engineering_chapter) {
+    templateForm.software_engineering_chapter = presetForm.software_engineering_chapter
+  }
+  if (!templateForm.theme_category_id && presetForm.ideological_theme) {
+    templateForm.theme_category_id = presetForm.ideological_theme
+  }
+
   // 🔧 增强：智能填充名称和描述
-  const keywordStr = keywords.length > 0 ? keywords.join('_') : '通用'
   const date = new Date().toLocaleDateString('zh-CN').replace(/\//g, '-')
-  templateForm.name = `${keywordStr}提示词模板_${date}`
-  templateForm.description = `通过AI助手生成的${keywordStr}相关提示词模板，适用于${keywords.join('、')}等场景。`
+  const mainChapter = meta.chapters[0] || getChapterLabelById(presetForm.software_engineering_chapter) || '软件工程'
+  const mainKnowledge = meta.knowledgePoints[0] || presetForm.knowledge_point || ''
+  const mainTheme = meta.themes[0] || getOptionLabel(themeOptions, presetForm.ideological_theme) || '思政主题'
+  const keywordStr = keywords.length > 0 ? keywords.join('_') : (mainChapter || '通用')
+
+  templateForm.name = `${mainChapter}${mainKnowledge ? `-${mainKnowledge}` : ''}提示词模板_${date}`
+  templateForm.description = `面向《软件工程》${mainChapter}章节${mainKnowledge ? `（${mainKnowledge}）` : ''}，融合${mainTheme}，适用于${keywordStr}相关场景的提示词模板。`
 
   // 🔧 增强：智能选择类型和分类
-  if (keywords.includes('教学')) {
+  const deliverableHint = meta.deliverables.join('、')
+
+  if (deliverableHint.includes('讨论') || keywords.includes('分析')) {
+    templateForm.template_type = 'discussion_generation'
+    templateForm.category = '思政讨论'
+  } else if (deliverableHint.includes('教学设计') || deliverableHint.includes('教案') || keywords.includes('教学')) {
     templateForm.template_type = 'teaching_design'
     templateForm.category = '教学方法'
+  } else if (deliverableHint.includes('思考') || deliverableHint.includes('练习')) {
+    templateForm.template_type = 'thinking_generation'
+    templateForm.category = '思考题'
+  } else if (deliverableHint.includes('评价') || deliverableHint.includes('复盘')) {
+    templateForm.template_type = 'knowledge_point'
+    templateForm.category = '质量评价'
   } else if (keywords.includes('写作')) {
     templateForm.template_type = 'content_optimization'
     templateForm.category = '内容优化'
@@ -1100,6 +1160,15 @@ watch(
     const names = knowledgePointOptions.value.map(item => item.value)
     if (!names.includes(presetForm.knowledge_point)) {
       presetForm.knowledge_point = null
+    }
+  }
+)
+
+watch(
+  () => presetForm.course_id,
+  async (courseId, prev) => {
+    if (courseId !== prev) {
+      await handleCourseChange(courseId)
     }
   }
 )
@@ -1304,10 +1373,6 @@ watch(
   margin: 0 0 16px 0;
   color: var(--n-text-color-depth-3);
   font-size: 14px;
-}
-
-.quick-start-buttons {
-  margin-top: 16px;
 }
 
 .preset-panel {

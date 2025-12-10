@@ -6,9 +6,21 @@ from app.models.enums import PromptAssistantSession
 
 def extract_requirements(
     user_message: str, 
-    conversation_history: List = None
+    conversation_history: List = None,
+    assistant_message: Optional[str] = None
 ) -> Dict[str, Any]:
-    """从用户消息中提取需求信息"""
+    """从用户/助手消息中提取需求信息"""
+    text_corpus = [user_message]
+    if assistant_message:
+        text_corpus.append(assistant_message)
+    if conversation_history:
+        for conv in conversation_history:
+            if getattr(conv, "user_message", None):
+                text_corpus.append(conv.user_message)
+            if getattr(conv, "assistant_message", None):
+                text_corpus.append(conv.assistant_message)
+    merged_text = "\n".join([t for t in text_corpus if t])
+
     requirements = {
         'task_type': None,
         'content_type': None,
@@ -18,6 +30,11 @@ def extract_requirements(
         'format': None,
         'key_elements': [],
         'constraints': [],
+        'software_engineering_chapter': None,
+        'knowledge_points': [],
+        'ideological_theme': None,
+        'expected_outputs': [],
+        'variables': []
     }
 
     # 任务类型识别
@@ -31,21 +48,46 @@ def extract_requirements(
     }
 
     for task_type, keywords in task_keywords.items():
-        if any(keyword in user_message.lower() for keyword in keywords):
+        if any(keyword.lower() in merged_text.lower() for keyword in keywords):
             requirements['task_type'] = task_type
             break
 
     # 风格识别
-    if any(word in user_message for word in ['正式', '专业', 'professional', 'formal']):
+    if any(word in merged_text for word in ['正式', '专业', 'professional', 'formal']):
         requirements['style'] = '正式'
-    elif any(word in user_message for word in ['随意', '友好', 'casual', 'friendly']):
+    elif any(word in merged_text for word in ['随意', '友好', 'casual', 'friendly']):
         requirements['style'] = '随意'
 
     # 长度识别
-    if any(word in user_message for word in ['短', '简短', 'short', 'brief']):
+    if any(word in merged_text for word in ['短', '简短', 'short', 'brief']):
         requirements['length'] = '简短'
-    elif any(word in user_message for word in ['长', '详细', 'detailed', 'comprehensive']):
+    elif any(word in merged_text for word in ['长', '详细', 'detailed', 'comprehensive']):
         requirements['length'] = '详细'
+
+    # 章节/知识点/思政主题识别
+    chapter_match = re.search(r'(?:软件工程)?章节[:：]\s*([^\n；;]+)', merged_text)
+    if chapter_match:
+        requirements['software_engineering_chapter'] = chapter_match.group(1).strip()
+
+    knowledge_matches = re.findall(r'(?:知识点|适用知识点|核心知识点)[:：]\s*([^\n；;]+)', merged_text)
+    for km in knowledge_matches:
+        parts = re.split(r'[、，,;/\s]+', km)
+        requirements['knowledge_points'].extend([p for p in parts if p])
+
+    theme_match = re.search(r'(?:思政主题|价值观|思政元素)[:：]\s*([^\n；;]+)', merged_text)
+    if theme_match:
+        requirements['ideological_theme'] = theme_match.group(1).strip()
+
+    # 输出/产出物识别
+    output_matches = re.findall(r'(?:输出格式|交付物|产出|最终输出)[:：]\s*([^\n；;]+)', merged_text)
+    for om in output_matches:
+        parts = re.split(r'[、，,;/\s]+', om)
+        requirements['expected_outputs'].extend([p for p in parts if p])
+
+    # 变量识别
+    variable_matches = re.findall(r'\{\{([^}]+)\}\}', merged_text)
+    if variable_matches:
+        requirements['variables'] = list({v.strip() for v in variable_matches if v.strip()})
 
     return requirements
 

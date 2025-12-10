@@ -48,7 +48,11 @@ class PromptAssistantService:
         assistant_message = response['choices'][0]['message']['content']
         
         # 提取需求信息
-        extracted_requirements = extract_requirements(request.message, conversation_history)
+        extracted_requirements = extract_requirements(
+            request.message,
+            conversation_history,
+            assistant_message
+        )
         
         # 智能提取提示词
         suggested_prompt, final_prompt, next_stage = extract_prompt_from_response(
@@ -144,7 +148,11 @@ class PromptAssistantService:
             raise
         
         # 提取需求信息
-        extracted_requirements = extract_requirements(request.message, conversation_history)
+        extracted_requirements = extract_requirements(
+            request.message,
+            conversation_history,
+            full_response
+        )
         
         # 智能提取提示词
         suggested_prompt, final_prompt, next_stage = extract_prompt_from_response(
