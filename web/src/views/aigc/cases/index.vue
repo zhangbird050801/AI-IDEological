@@ -1033,6 +1033,11 @@ const fetchCases = async () => {
     // 响应数据在 response.data 中
     const data = response?.data || response
     let items = data?.items || []
+    // 先根据服务端的收藏状态同步本地收藏ID
+    const serverFavoriteIds = items.filter(item => item.is_favorited).map(item => item.id)
+    if (serverFavoriteIds.length > 0) {
+      saveFavorites(serverFavoriteIds)
+    }
     
     // 如果开启了"只看收藏"，则筛选收藏的案例
     if (searchForm.show_favorites_only) {
@@ -1045,6 +1050,7 @@ const fetchCases = async () => {
       rating: Number(item.rating ?? 0),
       rating_count: Number(item.rating_count ?? 0),
       favorite_count: item.favorite_count ?? 0,
+      is_favorited: item.is_favorited ?? false,
     }))
     
     console.log(`✅ 获取到 ${items.length} 个案例，总数: ${data?.total || 0}`)
@@ -1058,8 +1064,9 @@ const fetchCases = async () => {
       console.log('⚠️ 没有获取到任何案例')
     }
     
-    // 更新收藏状态
+    // 更新收藏状态并同步本地存储
     updateFavoritesStatus()
+    syncFavoritesStorage(casesList.value)
 
     if (viewMode.value === 'list') {
       pagination.itemCount = searchForm.show_favorites_only ? items.length : (data?.total || 0)
@@ -1537,12 +1544,11 @@ const deleteCase = (case_item) => {
 const viewCaseDetail = (case_item) => {
   currentCase.value = case_item
   // 确保详情页的收藏状态是最新的
-  const favorites = getFavorites()
-  currentCase.value.is_favorited = favorites.includes(case_item.id)
-  // 确保收藏数显示正确
-  if (!currentCase.value.favorite_count) {
-    currentCase.value.favorite_count = 0
+  if (typeof currentCase.value.is_favorited === 'undefined' || currentCase.value.is_favorited === null) {
+    const favorites = getFavorites()
+    currentCase.value.is_favorited = favorites.includes(case_item.id)
   }
+  ensureFavoriteCount(currentCase.value)
   detailModalVisible.value = true
 }
 
@@ -1582,35 +1588,41 @@ const saveFavorites = (favorites) => {
 
 // 切换收藏状态
 const toggleFavorite = async (case_item) => {
+  const targetState = !case_item.is_favorited
+  const prevState = case_item.is_favorited
+  const prevCount = case_item.favorite_count
+
   try {
+    const response = await casesApi.toggleFavorite(case_item.id, targetState)
+    const data = response?.data || response || {}
+    case_item.is_favorited = data.favorited ?? targetState
+    case_item.favorite_count = Number(data.favorite_count ?? prevCount ?? 0)
+    ensureFavoriteCount(case_item)
+
+    // 同步本地收藏列表，用于“只看收藏”过滤
     const favorites = getFavorites()
-    const caseId = case_item.id
-    const isFavorited = favorites.includes(caseId)
-    
-    if (isFavorited) {
-      // 取消收藏
-      const index = favorites.indexOf(caseId)
-      favorites.splice(index, 1)
-      case_item.is_favorited = false
-      // 更新收藏数（由于使用localStorage，这里只能是0或1）
-      case_item.favorite_count = (case_item.favorite_count || 1) - 1
-      message.success('取消收藏')
+    if (case_item.is_favorited) {
+      if (!favorites.includes(case_item.id)) {
+        favorites.push(case_item.id)
+      }
     } else {
-      // 添加收藏
-      favorites.push(caseId)
-      case_item.is_favorited = true
-      // 更新收藏数
-      case_item.favorite_count = (case_item.favorite_count || 0) + 1
-      message.success('收藏成功')
+      const idx = favorites.indexOf(case_item.id)
+      if (idx !== -1) favorites.splice(idx, 1)
     }
-    
     saveFavorites(favorites)
-    
-    // TODO: 如果后端有收藏API，可以在这里同步到服务器
-    // await request.post(`/ideological/cases/${caseId}/favorite`, { favorited: !isFavorited })
+
+    // 同步详情弹窗
+    if (detailModalVisible.value && currentCase.value?.id === case_item.id) {
+      currentCase.value.is_favorited = case_item.is_favorited
+      currentCase.value.favorite_count = case_item.favorite_count
+    }
+
+    message.success(case_item.is_favorited ? '收藏成功' : '取消收藏')
   } catch (error) {
     console.error('收藏操作失败:', error)
-    message.error('操作失败')
+    case_item.is_favorited = prevState
+    case_item.favorite_count = prevCount
+    message.error('收藏操作失败')
   }
 }
 
@@ -1618,12 +1630,16 @@ const toggleFavorite = async (case_item) => {
 const updateFavoritesStatus = () => {
   const favorites = getFavorites()
   casesList.value.forEach(item => {
-    item.is_favorited = favorites.includes(item.id)
-    // 初始化收藏数（如果后端没有返回，默认为0；如果用户收藏了，显示为1）
-    if (typeof item.favorite_count === 'undefined') {
-      item.favorite_count = item.is_favorited ? 1 : 0
+    if (typeof item.is_favorited === 'undefined' || item.is_favorited === null) {
+      item.is_favorited = favorites.includes(item.id)
     }
+    ensureFavoriteCount(item)
   })
+}
+
+const syncFavoritesStorage = (items = []) => {
+  const ids = items.filter(item => item.is_favorited).map(item => item.id)
+  saveFavorites(ids)
 }
 
 // 计算案例的收藏数（基于所有用户的本地收藏，这里只能统计当前用户）
@@ -1678,6 +1694,13 @@ const getCaseActionOptions = (case_item) => {
     { type: 'divider' },
     { label: '删除', key: 'delete' },
   ]
+}
+
+// 确保收藏数展示与本地收藏状态一致
+const ensureFavoriteCount = (item) => {
+  if (!item) return
+  const count = Number(item.favorite_count ?? 0)
+  item.favorite_count = item.is_favorited ? Math.max(count, 1) : count
 }
 
 const handleCaseAction = (key, case_item) => {

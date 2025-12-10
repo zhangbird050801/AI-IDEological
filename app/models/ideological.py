@@ -18,6 +18,7 @@ class IdeologicalCase(BaseModel, TimestampMixin):
     usage_count = fields.IntField(default=0, description="使用次数", index=True)
     rating = fields.FloatField(default=0.0, description="评分(0-5)", index=True)
     rating_count = fields.IntField(default=0, description="评分人数", index=True)
+    favorite_count = fields.IntField(default=0, description="收藏次数", index=True)
     is_public = fields.BooleanField(default=True, description="是否公开", index=True)
     status = fields.CharEnumField(CaseStatus, default=CaseStatus.DRAFT, description="状态", index=True)
     reviewer_comment = fields.TextField(null=True, description="审核意见")

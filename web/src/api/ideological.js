@@ -20,6 +20,8 @@ export const casesApi = {
   getRecommended: (params = {}) => request.get('/ideological/cases/recommended/list', { params }),
   // 评分案例
   rate: (id, rating) => request.post(`/ideological/cases/${id}/rate`, {}, { params: { rating } }),
+  // 收藏/取消收藏
+  toggleFavorite: (id, favorited = true) => request.post(`/ideological/cases/${id}/favorite`, { favorited }),
   // 获取章节列表
   getChapters: () => request.get('/ideological/cases/chapters/list'),
   // 获取思政主题列表

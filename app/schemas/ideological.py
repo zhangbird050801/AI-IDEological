@@ -41,6 +41,7 @@ class IdeologicalCaseInDB(IdeologicalCaseBase):
     usage_count: int
     rating: float
     rating_count: int
+    favorite_count: int
     status: str
     author_id: int
     reviewer_id: Optional[int] = None

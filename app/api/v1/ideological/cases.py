@@ -1,5 +1,7 @@
-from typing import List
+from typing import List, Dict, Set
+from collections import Counter
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
+from fastapi import Body
 from tortoise.queryset import Q
 from tortoise.expressions import F
 from app.schemas.ideological import (
@@ -10,7 +12,7 @@ from app.schemas.ideological import (
     BatchOperationRequest,
     BatchOperationResponse,
 )
-from app.models.ideological import IdeologicalCase as IdeologicalCaseModel
+from app.models.ideological import IdeologicalCase as IdeologicalCaseModel, UserFavorites
 from app.models.admin import User
 from app.core.dependency import AuthControl
 from app.core.crud import CRUDBase
@@ -25,6 +27,21 @@ async def enrich_case_with_theme_name(case: IdeologicalCaseModel) -> dict:
         theme_name = await ThemeService.get_theme_name_by_id(case.theme_category_id)
         case_dict['theme_name'] = theme_name
     return case_dict
+
+
+async def get_favorite_stats(case_ids: List[int], user_id: int) -> (Dict[int, int], Set[int]):
+    """获取收藏统计和当前用户收藏集合"""
+    if not case_ids:
+        return {}, set()
+
+    favorites = await UserFavorites.filter(
+        target_type="case",
+        target_id__in=case_ids
+    ).values("target_id", "user_id")
+
+    counts = Counter([f["target_id"] for f in favorites])
+    user_favs = {f["target_id"] for f in favorites if f["user_id"] == user_id}
+    return counts, user_favs
 
 class CaseService(CRUDBase[IdeologicalCaseModel, IdeologicalCaseCreate, IdeologicalCaseUpdate]):
     def __init__(self):
@@ -150,10 +167,16 @@ async def get_cases(
 
     result = await case_service.get_cases_with_search(search_request, current_user.id)
 
-    # 转换为响应格式，并添加主题名称
+    # 收藏统计
+    case_ids = [item.id for item in result["items"]]
+    favorite_counts, user_favorites = await get_favorite_stats(case_ids, current_user.id)
+
+    # 转换为响应格式，并添加主题名称与收藏信息
     cases = []
     for item in result["items"]:
         case_dict = await enrich_case_with_theme_name(item)
+        case_dict["favorite_count"] = favorite_counts.get(item.id, 0)
+        case_dict["is_favorited"] = item.id in user_favorites
         cases.append(case_dict)
 
     return {
@@ -189,7 +212,14 @@ async def get_case(
     await case.update_from_dict({"usage_count": case.usage_count + 1})
     await case.save()
 
-    return await enrich_case_with_theme_name(case)
+    result = await enrich_case_with_theme_name(case)
+    # 收藏信息
+    result["favorite_count"] = await UserFavorites.filter(target_type="case", target_id=case_id).count()
+    result["is_favorited"] = await UserFavorites.filter(
+        target_type="case", target_id=case_id, user_id=current_user.id
+    ).exists()
+
+    return result
 
 @router.put("/{case_id}", summary="更新案例")
 async def update_case(
@@ -230,6 +260,46 @@ async def delete_case(
 
     await case.delete()
     return {"message": "案例删除成功"}
+
+
+@router.post("/{case_id}/favorite", summary="收藏/取消收藏案例")
+async def toggle_case_favorite(
+    case_id: int,
+    favorited: bool = Body(True, embed=True, description="true: 收藏, false: 取消收藏"),
+    current_user: User = Depends(AuthControl.is_authed)
+):
+    case = await IdeologicalCaseModel.get_or_none(id=case_id)
+    if not case:
+        raise HTTPException(status_code=404, detail="案例不存在")
+
+    existing = await UserFavorites.get_or_none(
+        target_type="case", target_id=case_id, user_id=current_user.id
+    )
+
+    if favorited and not existing:
+        await UserFavorites.create(
+            target_type="case",
+            target_id=case_id,
+            user_id=current_user.id
+        )
+        await IdeologicalCaseModel.filter(id=case_id).update(favorite_count=F("favorite_count") + 1)
+    elif not favorited and existing:
+        await existing.delete()
+        await IdeologicalCaseModel.filter(id=case_id, favorite_count__gt=0).update(
+            favorite_count=F("favorite_count") - 1
+        )
+
+    new_count = await UserFavorites.filter(target_type="case", target_id=case_id).count()
+    is_favorited = await UserFavorites.filter(
+        target_type="case", target_id=case_id, user_id=current_user.id
+    ).exists()
+
+    await IdeologicalCaseModel.filter(id=case_id).update(favorite_count=new_count)
+
+    return {
+        "favorited": is_favorited,
+        "favorite_count": new_count
+    }
 
 @router.post("/batch", summary="批量操作案例")
 async def batch_operation(
