@@ -182,9 +182,10 @@
                 </template>
 
                 <div class="case-content">
-                  <p class="case-description">
-                    {{ case_item.content.substring(0, 120) }}...
-                  </p>
+                  <div
+                    class="case-description markdown-content"
+                    v-html="renderMarkdownExcerpt(case_item.content, 180)"
+                  ></div>
 
                   <div class="case-meta">
                     <n-space size="small">
@@ -503,7 +504,7 @@
 
           <!-- 案例内容 -->
           <n-card title="案例内容" size="small">
-            <div class="case-detail-content" v-html="formatContent(currentCase.content)"></div>
+            <div class="case-detail-content markdown-content" v-html="renderMarkdown(currentCase.content)"></div>
           </n-card>
 
           <!-- 关键知识点 -->
@@ -759,6 +760,7 @@ import {
   useDialog,
 } from 'naive-ui'
 import { Icon } from '@iconify/vue'
+import MarkdownIt from 'markdown-it'
 import AppPage from '@/components/page/AppPage.vue'
 import { request } from '@/utils/http'
 import { casesApi, themeCategoriesApi } from '@/api/ideological'
@@ -862,6 +864,13 @@ const knowledgePointOptions = ref([])
 // 加载状态
 const loadingChapters = ref(false)
 const loadingKnowledgePoints = ref(false)
+
+// Markdown 渲染器
+const md = new MarkdownIt({
+  html: false,
+  linkify: true,
+  breaks: true,
+})
 
 // 表单验证规则
 const caseFormRules = {
@@ -1030,8 +1039,13 @@ const fetchCases = async () => {
       const favorites = getFavorites()
       items = items.filter(item => favorites.includes(item.id))
     }
-    
-    casesList.value = items
+    casesList.value = items.map(item => ({
+      ...item,
+      content: item.content || '',
+      rating: Number(item.rating ?? 0),
+      rating_count: Number(item.rating_count ?? 0),
+      favorite_count: item.favorite_count ?? 0,
+    }))
     
     console.log(`✅ 获取到 ${items.length} 个案例，总数: ${data?.total || 0}`)
     
@@ -1532,9 +1546,15 @@ const viewCaseDetail = (case_item) => {
   detailModalVisible.value = true
 }
 
-const formatContent = (content) => {
+const renderMarkdown = (content) => {
   if (!content) return ''
-  return content.replace(/\n/g, '<br>')
+  return md.render(content)
+}
+
+const renderMarkdownExcerpt = (content, limit = 160) => {
+  if (!content) return ''
+  const text = content.length > limit ? `${content.slice(0, limit)}...` : content
+  return md.render(text)
 }
 
 // 收藏功能相关
@@ -1898,6 +1918,10 @@ onMounted(() => {
   color: var(--n-text-color-depth-3);
   margin: 12px 0;
   line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .case-meta {
@@ -1921,8 +1945,22 @@ onMounted(() => {
 
 .case-detail-content {
   line-height: 1.8;
-  white-space: pre-wrap;
   word-wrap: break-word;
+}
+
+.markdown-content :deep(p) {
+  margin: 0 0 8px;
+  line-height: 1.6;
+}
+
+.markdown-content :deep(ul),
+.markdown-content :deep(ol) {
+  padding-left: 20px;
+  margin: 8px 0;
+}
+
+.markdown-content :deep(li) {
+  margin: 4px 0;
 }
 
 /* 响应式设计 */

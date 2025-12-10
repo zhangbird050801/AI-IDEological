@@ -967,6 +967,14 @@ const openPreview = async (resource) => {
   }
 
   const type = detectPreviewType(resource, url)
+  // 仅对可内嵌预览的类型展示弹窗，其他类型直接新开窗口，避免闪烁
+  if (type === 'pdf' || type === 'other') {
+    window.open(url, '_blank')
+    previewVisible.value = false
+    previewLoading.value = false
+    return
+  }
+
   previewUrl.value = url
   previewType.value = type
   previewVisible.value = true
@@ -975,18 +983,10 @@ const openPreview = async (resource) => {
 
   await nextTick()
   try {
-    if (type === 'pdf') {
-      // PDF 使用浏览器原生/新窗口预览，避免内嵌兼容性问题
-      window.open(url, '_blank')
-      previewVisible.value = false
-      return
-    } else if (type === 'docx') {
+    if (type === 'docx') {
       await renderDocxFile(url)
     } else if (type === 'image') {
       previewImageUrl.value = url
-    } else {
-      window.open(url, '_blank')
-      previewVisible.value = false
     }
   } catch (error) {
     console.error('预览失败:', error)
@@ -1142,8 +1142,7 @@ const handleResourceAction = (key, resource) => {
       message.info('编辑功能开发中')
       break
     case 'copy':
-      navigator.clipboard.writeText(window.location.origin + resource.download_url)
-      message.success('链接已复制')
+      copyResourceLink(resource)
       break
     case 'download':
       downloadResource(resource)
@@ -1178,6 +1177,31 @@ const deleteResource = (resource) => {
       }
     },
   })
+}
+
+const resolveResourceUrl = (resource) => {
+  const url =
+    resource?.download_url ||
+    resource?.file_url ||
+    resource?.preview_url ||
+    resource?.external_url
+  if (!url) return ''
+  if (url.startsWith('http')) return url
+  try {
+    return new URL(url, window.location.origin).href
+  } catch (e) {
+    return ''
+  }
+}
+
+const copyResourceLink = (resource) => {
+  const url = resolveResourceUrl(resource)
+  if (!url) {
+    message.error('暂无可复制的链接')
+    return
+  }
+  navigator.clipboard.writeText(url)
+  message.success('链接已复制')
 }
 
 // 初始化
