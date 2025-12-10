@@ -892,7 +892,6 @@ const caseFormRules = {
       message: '请选择思政主题', 
       trigger: ['change', 'blur'],
       validator: (rule, value) => {
-        console.log('验证 theme_category_id:', value, typeof value)
         if (!value) {
           return new Error('请选择思政主题')
         }
@@ -1025,10 +1024,7 @@ const fetchCases = async () => {
       page_size: viewMode.value === 'list' ? pagination.pageSize : 12,
     }
     
-    console.log('📤 请求参数:', params)
-
     const response = await request.get('/ideological/cases/', { params })
-    console.log('📥 获取案例列表响应:', response)
     
     // 响应数据在 response.data 中
     const data = response?.data || response
@@ -1053,16 +1049,6 @@ const fetchCases = async () => {
       is_favorited: item.is_favorited ?? false,
     }))
     
-    console.log(`✅ 获取到 ${items.length} 个案例，总数: ${data?.total || 0}`)
-    
-    // 调试：检查第一个案例的数据
-    if (items.length > 0) {
-      console.log('第一个案例数据:', items[0])
-      console.log('theme_category_id:', items[0].theme_category_id)
-      console.log('theme_name:', items[0].theme_name)
-    } else {
-      console.log('⚠️ 没有获取到任何案例')
-    }
     
     // 更新收藏状态并同步本地存储
     updateFavoritesStatus()
@@ -1084,30 +1070,39 @@ const fetchOptions = async () => {
   try {
     // 获取章节选项
   try {
-    const chaptersResponse = await api.getChaptersByCourse(1)
-    const chapters = chaptersResponse?.data || chaptersResponse || []
-    chapterOptions.value = chapters.map((item) => ({
-      label: item.name,
-      value: item.name,
-    }))
+    const coursesResp = await api.getAllCourses(true)
+    const courses = coursesResp?.data || coursesResp || []
+    if (Array.isArray(courses) && courses.length > 0) {
+      courseOptions.value = courses.map(course => ({
+        label: course.name,
+        value: course.id,
+      }))
+
+      const firstCourseId = courseOptions.value[0]?.value
+      if (firstCourseId) {
+        const chaptersResponse = await api.getChaptersByCourse(firstCourseId)
+        const chapters = chaptersResponse?.data || chaptersResponse || []
+        chapterOptions.value = chapters.map((item) => ({
+          label: item.name,
+          value: item.name,
+        }))
+      }
+    }
+
+    // 如果仍未获取到章节，回退为空列表
+    if (!Array.isArray(chapterOptions.value) || chapterOptions.value.length === 0) {
+      chapterOptions.value = []
+    }
   } catch (error) {
     console.error('获取章节选项失败:', error)
-    // 使用默认章节数据
-    chapterOptions.value = [
-      '软件工程概述', '软件过程模型', '需求分析', '系统设计', '编码实现',
-      '软件测试', '软件维护', '项目管理', '软件质量', '软件工程前沿',
-    ].map((item) => ({ label: item, value: item }))
+    chapterOptions.value = []
   }
 
     // 获取主题选项（从数据库读取）- 现在返回 ID 和名称
     try {
       const response = await themeCategoriesApi.getList()
-      console.log('📥 主题分类API响应:', response)
-      
       // 响应可能被多次包装，需要逐层解包
       let themesResponse = response?.data?.data || response?.data || response
-      console.log('📦 解包后的数据:', themesResponse)
-      console.log('📦 数据类型:', typeof themesResponse, Array.isArray(themesResponse))
       
       // 确保是数组
       if (!Array.isArray(themesResponse)) {
@@ -1123,7 +1118,6 @@ const fetchOptions = async () => {
           value: item.id,  // 使用ID作为值
         }))
       
-      console.log('✅ 处理后的主题选项:', themeOptions.value)
     } catch (error) {
       console.error('❌ 获取思政主题失败:', error)
       // 使用默认主题数据作为fallback
@@ -1141,18 +1135,6 @@ const fetchOptions = async () => {
       ]
     }
 
-    // 获取课程列表
-    try {
-      const coursesResponse = await request.get('/courses/all', { params: { is_active: true } })
-      const courses = coursesResponse?.data || coursesResponse || []
-      courseOptions.value = courses.map(course => ({
-        label: course.name,
-        value: course.id,
-      }))
-    } catch (error) {
-      console.error('获取课程列表失败:', error)
-      courseOptions.value = []
-    }
   } catch (error) {
     message.error('获取选项数据失败')
   }
@@ -1214,7 +1196,6 @@ const handleChapterChange = async (chapterId) => {
 }
 
 const handleSearch = () => {
-  console.log('点击搜索按钮 - searchForm:', searchForm)
   pagination.page = 1
   fetchCases()
 }
@@ -1449,7 +1430,6 @@ const editCase = async (case_item) => {
     caseForm.theme_category_id = Number(caseForm.theme_category_id)
   }
   
-  console.log('编辑案例 - theme_category_id:', caseForm.theme_category_id, typeof caseForm.theme_category_id)
   
   // 如果有课程ID，加载对应的章节
   if (case_item.course_id) {

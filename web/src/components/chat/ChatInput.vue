@@ -242,13 +242,11 @@ function handleKeydown(e) {
 }
 
 function handleSend() {
-  console.log('handleSend called, canSend:', canSend.value)
   if (!canSend.value) return
 
   const content = inputText.value.trim()
   const files = [...attachments.value]
 
-  console.log('Emitting send event with:', { content, attachments: files })
 
   emit('send', {
     content,

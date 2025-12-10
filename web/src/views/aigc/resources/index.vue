@@ -554,6 +554,7 @@ import { Icon } from '@iconify/vue'
 import AppPage from '@/components/page/AppPage.vue'
 import { request } from '@/utils/http'
 import { resourcesApi, casesApi, themeCategoriesApi } from '@/api/ideological'
+import * as courseApi from '@/api/courses'
 import { renderAsync as renderDocx } from 'docx-preview'
 import { getToken } from '@/utils/auth/token'
 
@@ -684,33 +685,34 @@ const fetchOptions = async () => {
       const typesResponse = await request.get('/ideological/resources/types/list')
       resourceTypeOptions.value = normalizeResourceTypeOptions(typesResponse)
     } catch (error) {
-      // 使用默认资源类型数据
       resourceTypeOptions.value = normalizeResourceTypeOptions()
     }
 
-    // 获取章节选项
+    // 获取章节选项（数据库）
     try {
-      const chaptersResponse = await casesApi.getChapters()
-      chapterOptions.value = chaptersResponse.map(item => ({
-        label: item,
-        value: item,
-      }))
+      const coursesResp = await courseApi.getAllCourses(true)
+      const courses = coursesResp?.data || coursesResp || []
+      const courseId = courses?.[0]?.id
+      if (courseId) {
+        const chaptersResp = await courseApi.getChaptersByCourse(courseId)
+        const chaptersData = chaptersResp?.data || chaptersResp || []
+        chapterOptions.value = chaptersData.map(item => ({
+          label: item.name,
+          value: item.name,
+        }))
+      }
+      if (chapterOptions.value.length === 0) {
+        chapterOptions.value = []
+      }
     } catch (error) {
-      // 使用默认章节数据
-      chapterOptions.value = [
-        "软件工程概述", "软件过程模型", "需求分析", "系统设计", "编码实现",
-        "软件测试", "软件维护", "项目管理", "软件质量", "软件工程前沿"
-      ].map(item => ({ label: item, value: item }))
+      chapterOptions.value = []
     }
 
     // 获取主题选项（从数据库读取）- 使用ID和名称
     try {
       const response = await themeCategoriesApi.getList()
-      console.log('📥 [Resources] 主题分类API响应:', response)
-      
       // 响应可能被多次包装
       let themesResponse = response?.data?.data || response?.data || response
-      console.log('📦 [Resources] 解包后的数据:', themesResponse, Array.isArray(themesResponse))
       
       // 确保是数组
       if (!Array.isArray(themesResponse)) {
@@ -725,8 +727,6 @@ const fetchOptions = async () => {
           label: item.name,
           value: item.id,  // 使用ID作为值
         }))
-      
-      console.log('✅ [Resources] 处理后的主题选项:', themeOptions.value)
     } catch (error) {
       console.error('❌ [Resources] 获取思政主题失败:', error)
       // 使用默认主题数据作为fallback

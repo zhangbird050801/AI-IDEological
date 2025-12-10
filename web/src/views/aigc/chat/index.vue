@@ -752,12 +752,8 @@ async function confirmSaveCase() {
         status: 'published', // 直接发布，不需要审核
       }
       
-      console.log('保存案例数据:', caseData)
-      
       // 直接调用创建案例的API
       const response = await request.post('/ideological/cases/', caseData)
-      
-      console.log('保存成功:', response)
       message.success('案例已成功保存到案例库！')
       resolve(true)
     } catch (error) {
@@ -875,15 +871,11 @@ async function fetchOptions() {
   
   try {
     const response = await themeCategoriesApi.getList()
-    console.log('📥 [Chat] 主题分类API响应:', response)
-    
-    // 响应可能被多次包装
-    let themesResponse = response?.data?.data || response?.data || response
-    console.log('📦 [Chat] 解包后的数据:', themesResponse, Array.isArray(themesResponse))
-    
-    // 确保是数组
-    if (!Array.isArray(themesResponse)) {
-      console.error('❗ [Chat] 主题数据不是数组')
+  // 响应可能被多次包装
+  let themesResponse = response?.data?.data || response?.data || response
+  // 确保是数组
+  if (!Array.isArray(themesResponse)) {
+    console.error('❗ [Chat] 主题数据不是数组')
       throw new Error('主题数据格式错误')
     }
     
@@ -895,7 +887,6 @@ async function fetchOptions() {
         value: item.id,  // 使用ID作为值
       }))
     
-    console.log('✅ [Chat] 处理后的主题选项:', themeOptions.value)
   } catch (error) {
     console.error('❗ [Chat] 获取主题选项失败:', error)
     // 使用默认主题数据作为fallback

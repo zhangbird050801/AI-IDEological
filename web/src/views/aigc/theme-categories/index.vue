@@ -243,7 +243,6 @@ const parentOptions = computed(() => {
       disabled: !item.is_active
     }))
   
-  console.log('📁 [ThemeCategory] 父分类选项:', options)
   return options
 })
 

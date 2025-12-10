@@ -9,7 +9,7 @@ export function setupDevAuth() {
     if (!currentToken) {
       // 设置开发环境的默认token
       setToken('dev')
-      console.log('🔧 开发环境：已设置默认认证token')
+      // 开发环境：设置默认认证token
     }
   }
 }
@@ -19,7 +19,7 @@ export function ensureDevAuth() {
     const currentToken = localStorage.getItem('access_token')
     if (!currentToken || currentToken !== 'dev') {
       setToken('dev')
-      console.log('🔧 开发环境：已重置认证token')
+      // 开发环境：重置认证token
     }
   }
 }

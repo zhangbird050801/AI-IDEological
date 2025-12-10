@@ -54,7 +54,7 @@ export async function resReject(error) {
       const userStore = useUserStore()
       userStore.logout()
     } catch (error) {
-      console.log('resReject error', error)
+      // 记录拦截器错误，方便调试
       return
     }
   }

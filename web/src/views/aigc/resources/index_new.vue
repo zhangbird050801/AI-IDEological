@@ -421,10 +421,7 @@ const fetchOptions = async () => {
 
     // 加载主题选项
     const themesResponse = await themeCategoriesApi.getList()
-    console.log('📥 [ResourcesNew] 主题分类API响应:', themesResponse)
-    
     let themesData = themesResponse?.data?.data || themesResponse?.data || themesResponse
-    console.log('📦 [ResourcesNew] 解包后的数据:', themesData)
     
     if (!Array.isArray(themesData)) {
       console.error('❗ [ResourcesNew] 主题数据不是数组')
@@ -437,8 +434,6 @@ const fetchOptions = async () => {
         label: item.name,
         value: item.id,  // 使用ID作为值
       }))
-    
-    console.log('✅ [ResourcesNew] 处理后的主题选项:', themeOptions.value)
   } catch (error) {
     console.error('❗ [ResourcesNew] 加载选项失败:', error)
     // fallback数据

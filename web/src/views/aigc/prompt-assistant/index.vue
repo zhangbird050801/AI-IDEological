@@ -49,6 +49,37 @@
                       </n-button>
                     </n-space>
                   </div>
+                  <div class="preset-panel">
+                    <n-space wrap align="center">
+                      <n-select
+                        v-model:value="presetForm.software_engineering_chapter"
+                        placeholder="预设软件工程章节"
+                        :options="chapterOptions"
+                        clearable
+                        style="min-width: 180px"
+                      />
+                      <n-select
+                        v-model:value="presetForm.knowledge_point"
+                        placeholder="预设知识点"
+                        :options="knowledgePointOptions"
+                        clearable
+                        style="min-width: 180px"
+                      />
+                      <n-select
+                        v-model:value="presetForm.ideological_theme"
+                        placeholder="预设思政主题"
+                        :options="themeOptions"
+                        clearable
+                        style="min-width: 180px"
+                      />
+                      <n-button size="small" type="primary" @click="applyPresetToInput">
+                        填入提示
+                      </n-button>
+                      <n-button size="small" text @click="resetPreset">
+                        清空预设
+                      </n-button>
+                    </n-space>
+                  </div>
                 </div>
               </div>
 
@@ -416,6 +447,7 @@ import { Icon } from '@iconify/vue'
 import AppPage from '@/components/page/AppPage.vue'
 import { request } from '@/utils/http'
 import { themeCategoriesApi } from '@/api/ideological'
+import * as courseApi from '@/api/courses'
 import { getToken } from '@/utils/auth/token'
 import MarkdownIt from 'markdown-it'
 
@@ -463,6 +495,16 @@ const templateTypeOptions = ref([])
 const categoryOptions = ref([])
 const chapterOptions = ref([])
 const themeOptions = ref([])
+const knowledgePointOptions = ref([])
+const chapterIdMap = ref({})
+const courseIdForPreset = ref(null)
+
+// 预设表单
+const presetForm = reactive({
+  software_engineering_chapter: null,
+  knowledge_point: null,
+  ideological_theme: null,
+})
 
 // 表单验证规则
 const templateFormRules = {
@@ -511,6 +553,97 @@ const quickStartExamples = ref([
     message: '帮我制作一个创意故事生成的提示词，能够根据主题生成有趣的故事'
   }
 ])
+
+// 知识点默认映射
+const knowledgePointMap = {
+  '软件工程概述': ['软件工程特性', '生命周期', '角色职责'],
+  '软件过程模型': ['瀑布模型', '迭代模型', '敏捷开发'],
+  '需求分析': ['需求获取', '用例建模', '需求验证'],
+  '系统设计': ['架构设计', '模块划分', '接口设计'],
+  '编码实现': ['代码规范', '单元测试', '版本控制'],
+  '软件测试': ['测试计划', '测试用例设计', '缺陷管理'],
+  '软件维护': ['重构', '代码审计', '持续集成'],
+  '项目管理': ['进度管理', '风险管理', '团队协作'],
+  '软件质量': ['质量度量', '评审', '质量保证'],
+  '软件工程前沿': ['DevOps', '云原生', 'AI辅助开发'],
+}
+
+const loadChaptersAndKnowledge = async () => {
+  try {
+    // 取一个课程ID用于获取章节/知识点，优先使用激活课程
+    const coursesResp = await courseApi.getAllCourses(true)
+    const courses = coursesResp?.data || coursesResp || []
+    if (Array.isArray(courses) && courses.length > 0) {
+      courseIdForPreset.value = courses[0].id
+    }
+
+    // 拉取章节（包含ID）用于知识点查询
+    if (courseIdForPreset.value) {
+      const chaptersResp = await courseApi.getChaptersByCourse(courseIdForPreset.value)
+      const chapters = chaptersResp?.data || chaptersResp || []
+      chapterOptions.value = chapters.map(ch => ({ label: ch.name, value: ch.id }))
+      chapterIdMap.value = chapters.reduce((map, ch) => {
+        map[ch.id] = ch.name
+        return map
+      }, {})
+    }
+
+    // 如果未获取到章节，使用默认值
+    if (chapterOptions.value.length === 0) {
+      chapterOptions.value = [
+        "软件工程概述", "软件过程模型", "需求分析", "系统设计", "编码实现",
+        "软件测试", "软件维护", "项目管理", "软件质量", "软件工程前沿"
+      ].map(item => ({ label: item, value: item }))
+    }
+
+    // 初始化知识点选项
+    const initialChapterId = presetForm.software_engineering_chapter || chapterOptions.value?.[0]?.value
+    if (initialChapterId) {
+      await fetchKnowledgePoints(initialChapterId)
+    }
+  } catch (error) {
+    console.error('❗ [PromptAssistant] 加载章节/知识点失败:', error)
+    // 兜底：保持默认章节/知识点映射
+    chapterOptions.value = [
+      "软件工程概述", "软件过程模型", "需求分析", "系统设计", "编码实现",
+      "软件测试", "软件维护", "项目管理", "软件质量", "软件工程前沿"
+    ].map(item => ({ label: item, value: item }))
+    chapterIdMap.value = chapterOptions.value.reduce((map, ch) => {
+      map[ch.value] = ch.label
+      return map
+    }, {})
+    knowledgePointOptions.value = (knowledgePointMap[chapterOptions.value?.[0]?.value] || []).map(item => ({
+      label: item,
+      value: item,
+    }))
+  }
+}
+
+const fetchKnowledgePoints = async (chapterId) => {
+  // 优先调用后端接口获取知识点列表
+  if (chapterId) {
+    try {
+      const kpResp = await courseApi.getKnowledgePointsByChapter(chapterId)
+      const kpList = kpResp?.data || kpResp || []
+      if (Array.isArray(kpList) && kpList.length > 0) {
+        knowledgePointOptions.value = kpList.map(kp => ({
+          label: kp.name,
+          value: kp.name,
+        }))
+        return
+      }
+    } catch (error) {
+      console.error('❗ [PromptAssistant] 获取知识点失败，使用本地兜底:', error)
+    }
+  }
+
+  // 后端无数据或失败，使用本地映射兜底
+  const chapterName = chapterIdMap.value?.[chapterId]
+  knowledgePointOptions.value = (knowledgePointMap[chapterName] || []).map(item => ({
+    label: item,
+    value: item,
+  }))
+}
 
 // 阶段标签映射
 const stageLabels = {
@@ -598,17 +731,14 @@ const sendMessage = async () => {
             if (!jsonStr) continue
             
             const data = JSON.parse(jsonStr)
-            console.log('📦 收到数据:', data)
             
             if (data.type === 'session_id') {
               currentSessionId.value = data.session_id
-              console.log('✅ 会话ID:', data.session_id)
             } else if (data.type === 'content') {
               assistantMessage.content += data.content
               await scrollToBottom()
             } else if (data.type === 'done') {
               assistantMessage.isStreaming = false
-              console.log('✅ 流式输出完成')
               
               // 更新阶段
               if (data.session_stage) {
@@ -618,7 +748,6 @@ const sendMessage = async () => {
               // 设置建议的提示词
               if (data.suggested_prompt) {
                 assistantMessage.suggestedPrompt = data.suggested_prompt
-                console.log('💡 建议的提示词已设置')
               }
               
               // 设置最终提示词
@@ -626,7 +755,6 @@ const sendMessage = async () => {
                 assistantMessage.finalPrompt = data.final_prompt
                 isCompleted.value = true
                 currentStage.value = '可以继续优化'
-                console.log('🎉 最终提示词已生成')
               }
             } else if (data.type === 'error' || data.error) {
               console.error('❌ 服务器错误:', data.error)
@@ -680,6 +808,44 @@ const scrollToBottom = async () => {
       messagesContainer.value.scrollTop = scrollHeight
     }
   }
+}
+
+const getOptionLabel = (options, value) => {
+  const list = Array.isArray(options?.value) ? options.value : options
+  const found = list?.find?.(item => item?.value === value)
+  return found?.label || value || ''
+}
+
+const getChapterLabelById = (id) => chapterIdMap.value?.[id] || getOptionLabel(chapterOptions, id)
+
+const applyPresetToInput = () => {
+  const parts = []
+  if (presetForm.software_engineering_chapter) {
+    parts.push(`软件工程章节：${getChapterLabelById(presetForm.software_engineering_chapter)}`)
+  }
+  if (presetForm.knowledge_point) {
+    parts.push(`知识点：${getOptionLabel(knowledgePointOptions, presetForm.knowledge_point)}`)
+  }
+  if (presetForm.ideological_theme) {
+    parts.push(`思政主题：${getOptionLabel(themeOptions, presetForm.ideological_theme)}`)
+  }
+
+  if (parts.length === 0) {
+    message.warning('请选择至少一项预设内容')
+    return
+  }
+
+  const presetText = parts.join('；')
+  inputMessage.value = inputMessage.value
+    ? `${inputMessage.value.trim()}\n${presetText}`
+    : presetText
+  message.success('已填入预设内容，可继续补充需求后发送')
+}
+
+const resetPreset = () => {
+  presetForm.software_engineering_chapter = null
+  presetForm.knowledge_point = null
+  presetForm.ideological_theme = null
 }
 
 const formatMessage = (content) => {
@@ -736,7 +902,6 @@ const showTemplates = async () => {
       templates.value = []
     }
     
-    console.log('加载到的模板数量:', templates.value.length)
     templatesVisible.value = true
   } catch (error) {
     console.error('获取模板失败:', error)
@@ -860,7 +1025,6 @@ const fetchTemplateOptions = async () => {
       const typesResponse = await request.get('/ideological/templates/types/list')
       templateTypeOptions.value = Array.isArray(typesResponse.data) ? typesResponse.data : (typesResponse?.data || typesResponse || [])
     } catch (error) {
-      // 使用默认模板类型数据
       templateTypeOptions.value = [
         { label: "案例生成", value: "case_generation" },
         { label: "讨论题生成", value: "discussion_generation" },
@@ -886,31 +1050,14 @@ const fetchTemplateOptions = async () => {
       ].map(item => ({ label: item, value: item }))
     }
 
-    // 获取章节选项
-    try {
-      const chaptersResponse = await request.get('/ideological/cases/chapters/list')
-      const chaptersData = Array.isArray(chaptersResponse.data) ? chaptersResponse.data : (chaptersResponse?.data || chaptersResponse || [])
-      chapterOptions.value = chaptersData.map(item => ({
-        label: item,
-        value: item,
-      }))
-    } catch (error) {
-      // 使用默认章节数据
-      chapterOptions.value = [
-        "软件工程概述", "软件过程模型", "需求分析", "系统设计", "编码实现",
-        "软件测试", "软件维护", "项目管理", "软件质量", "软件工程前沿"
-      ].map(item => ({ label: item, value: item }))
-    }
+    // 获取章节+知识点（使用数据库数据）
+    await loadChaptersAndKnowledge()
 
     // 获取主题选项（从数据库读取）
     try {
       const themesResponse = await themeCategoriesApi.getList()
-      console.log('📥 [PromptAssistant] 主题分类API响应:', themesResponse)
-      
       // 响应可能被多次包装
       let themesData = themesResponse?.data?.data || themesResponse?.data || themesResponse
-      console.log('📦 [PromptAssistant] 解包后的数据:', themesData, Array.isArray(themesData))
-      
       // 确保是数组
       if (!Array.isArray(themesData)) {
         console.error('❗ [PromptAssistant] 主题数据不是数组')
@@ -924,8 +1071,6 @@ const fetchTemplateOptions = async () => {
           label: item.name,
           value: item.id,  // 使用ID作为值
         }))
-      
-      console.log('✅ [PromptAssistant] 处理后的主题选项:', themeOptions.value)
     } catch (error) {
       console.error('❗ [PromptAssistant] 获取思政主题失败:', error)
       // 使用默认主题数据作为fallback
@@ -946,6 +1091,18 @@ const fetchTemplateOptions = async () => {
     message.error('获取选项数据失败')
   }
 }
+
+// 监听章节选择，动态调整知识点选项
+watch(
+  () => presetForm.software_engineering_chapter,
+  async (chapterId) => {
+    await fetchKnowledgePoints(chapterId)
+    const names = knowledgePointOptions.value.map(item => item.value)
+    if (!names.includes(presetForm.knowledge_point)) {
+      presetForm.knowledge_point = null
+    }
+  }
+)
 
 const handleSaveTemplate = async () => {
   try {
@@ -986,7 +1143,6 @@ onMounted(() => {
   // 确保开发环境有认证token
   if (import.meta.env.DEV && !localStorage.getItem('access_token')) {
     localStorage.setItem('access_token', 'dev')
-    console.log('🔧 开发环境：已设置认证token')
   }
 
   // 从localStorage恢复对话
@@ -1152,6 +1308,14 @@ watch(
 
 .quick-start-buttons {
   margin-top: 16px;
+}
+
+.preset-panel {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px dashed var(--n-border-color);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.6);
 }
 
 .messages-list {
