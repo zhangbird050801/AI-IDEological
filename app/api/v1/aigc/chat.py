@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import List, Dict, Optional
-from app.core.aigc.deepseek_client import DeepseekClient
+from app.core.aigc.aigc_client import AIGCClient
 from app.settings.config import settings
 from fastapi.responses import StreamingResponse
 
@@ -19,7 +19,7 @@ class ChatResponse(BaseModel):
 
 @router.post('/chat', response_model=ChatResponse)
 async def chat_endpoint(req: ChatRequest):
-	client = DeepseekClient()
+	client = AIGCClient()
 	try:
 		data = await client.chat([m.dict() for m in req.messages])
 		reply = data["choices"][0]["message"]["content"]
@@ -38,8 +38,13 @@ class DiagResponse(BaseModel):
 @router.get('/diag', response_model=DiagResponse)
 async def diag():
 	# Return diagnostic info about AIGC configuration without revealing the API key
-	api_key = getattr(settings, 'DEEPSEEK_API_KEY', None)
-	base = getattr(settings, 'DEEPSEEK_API_BASE', None) or ''
+	provider = getattr(settings, 'AIGC_PROVIDER', None) or 'deepseek'
+	if provider in {"kimi", "moonshot"}:
+		api_key = getattr(settings, 'MOONSHOT_API_KEY', None)
+		base = getattr(settings, 'MOONSHOT_API_BASE', None) or ''
+	else:
+		api_key = getattr(settings, 'DEEPSEEK_API_KEY', None)
+		base = getattr(settings, 'DEEPSEEK_API_BASE', None) or ''
 	model = getattr(settings, 'AIGC_MODEL', None) or ''
 	raw_timeout = getattr(settings, 'AIGC_TIMEOUT', None) or '60000'
 	try:
@@ -61,7 +66,7 @@ async def diag():
 
 @router.post('/chat/stream')
 async def chat_stream_endpoint(req: ChatRequest):
-	client = DeepseekClient()
+	client = AIGCClient()
 
 	async def event_generator():
 		try:

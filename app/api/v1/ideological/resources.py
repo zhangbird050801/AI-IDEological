@@ -7,6 +7,11 @@ import os
 import uuid
 import aiofiles
 from pathlib import Path
+import json
+import re
+import tempfile
+import zipfile
+from starlette.concurrency import run_in_threadpool
 from app.schemas.ideological import (
     TeachingResourceCreate,
     TeachingResourceUpdate,
@@ -19,6 +24,8 @@ from app.models.ideological import TeachingResource as TeachingResourceModel, Re
 from app.models.admin import User
 from app.core.dependency import AuthControl
 from app.core.crud import CRUDBase
+from app.core.aigc.aigc_client import AIGCClient
+from app.settings.config import settings
 
 router = APIRouter()
 
@@ -152,6 +159,167 @@ class ResourceService(CRUDBase[TeachingResourceModel, TeachingResourceCreate, Te
             "resource_type": resource_type
         }
 
+def _normalize_text(text: str) -> str:
+    if not text:
+        return ''
+    return '\n'.join(line.rstrip() for line in text.splitlines()).strip()
+
+def _normalize_kimi_content(raw_text: str) -> str:
+    text = raw_text or ''
+    image_pattern = r'!\[[^\]]*]\([^)]+\)(\{[^}]+\})?'
+    try:
+        data = json.loads(text)
+        if isinstance(data, dict):
+            content = (
+                data.get("content")
+                or data.get("text")
+                or (data.get("data", {}) or {}).get("content")
+                or (data.get("data", {}) or {}).get("text")
+            )
+            if isinstance(content, str):
+                text = content
+    except Exception:
+        pass
+
+    if re.search(image_pattern, text):
+        text = re.sub(image_pattern, '', text)
+
+    text = _normalize_text(text)
+    if not text and raw_text and re.search(image_pattern, raw_text):
+        return "（该文件主要为图片或扫描件，未抽取到可用文本）"
+    return text
+
+def _needs_image_fallback(text: str) -> bool:
+    if not text:
+        return True
+    if text.strip() == "（该文件主要为图片或扫描件，未抽取到可用文本）":
+        return True
+    return False
+
+async def _extract_docx_images_text(file_path: Path, client: AIGCClient) -> str:
+    if not file_path.exists():
+        return ''
+    if file_path.suffix.lower() != '.docx':
+        return ''
+
+    image_texts = []
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        try:
+            with zipfile.ZipFile(str(file_path)) as zf:
+                image_names = [n for n in zf.namelist() if n.startswith("word/media/")]
+                for name in image_names:
+                    data = zf.read(name)
+                    if not data:
+                        continue
+                    image_path = Path(tmp_dir) / Path(name).name
+                    image_path.write_bytes(data)
+                    raw_text = await client.extract_file_text(str(image_path))
+                    normalized = _normalize_kimi_content(raw_text)
+                    if normalized and not _needs_image_fallback(normalized):
+                        image_texts.append(normalized)
+        except Exception:
+            return ''
+
+    return _normalize_text('\n'.join(image_texts))
+
+def _extract_text_sync(file_path: Path, file_format: str, resource_type: str) -> str:
+    suffix = (file_format or '').lower().lstrip('.')
+    if not suffix:
+        suffix = file_path.suffix.lower().lstrip('.')
+
+    if suffix in ['txt', 'rtf']:
+        for encoding in ['utf-8', 'utf-16', 'gbk', 'latin-1']:
+            try:
+                return file_path.read_text(encoding=encoding)
+            except Exception:
+                continue
+        return file_path.read_text(errors='ignore')
+
+    if suffix == 'pdf':
+        try:
+            import pdfplumber
+        except Exception as exc:
+            raise ValueError("缺少依赖 pdfplumber，请安装后重试") from exc
+        text_parts = []
+        with pdfplumber.open(str(file_path)) as pdf:
+            for page in pdf.pages:
+                page_text = page.extract_text() or ''
+                if page_text:
+                    text_parts.append(page_text)
+        return '\n'.join(text_parts)
+
+    if suffix in ['docx', 'doc']:
+        if suffix == 'doc':
+            raise ValueError('暂不支持 .doc 格式，请转换为 .docx')
+        try:
+            import docx
+        except Exception as exc:
+            raise ValueError("缺少依赖 python-docx，请安装后重试") from exc
+        doc = docx.Document(str(file_path))
+        return '\n'.join(p.text for p in doc.paragraphs if p.text)
+
+    if resource_type == 'image' or suffix in ['png', 'jpg', 'jpeg', 'bmp', 'gif', 'tiff']:
+        try:
+            from PIL import Image
+        except Exception as exc:
+            raise ValueError("缺少依赖 pillow，请安装后重试") from exc
+        try:
+            import pytesseract
+        except Exception as exc:
+            raise ValueError("缺少依赖 pytesseract，请安装后重试") from exc
+        try:
+            image = Image.open(str(file_path))
+            return pytesseract.image_to_string(image)
+        except Exception as exc:
+            raise ValueError(f'图片识别失败: {exc}') from exc
+
+    raise ValueError('该资源类型不支持文本提取')
+
+async def extract_resource_text_content(resource: TeachingResourceModel, max_chars: int) -> dict:
+    if not resource.file_path:
+        raise HTTPException(status_code=400, detail="该资源没有可读取的文件")
+
+    file_path = Path(resource.file_path)
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="资源文件不存在")
+
+    provider = (getattr(settings, "AIGC_PROVIDER", None) or "deepseek").lower()
+    if provider in {"kimi", "moonshot"}:
+        try:
+            client = AIGCClient()
+            raw_text = await client.extract_file_text(str(file_path))
+            raw_text = _normalize_kimi_content(raw_text)
+            if _needs_image_fallback(raw_text) and file_path.suffix.lower() == ".docx":
+                fallback_text = await _extract_docx_images_text(file_path, client)
+                if fallback_text:
+                    raw_text = fallback_text
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail=f"Kimi 文件解析失败: {exc}") from exc
+    else:
+        try:
+            raw_text = await run_in_threadpool(
+                _extract_text_sync,
+                file_path,
+                resource.file_format or '',
+                resource.resource_type,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail=f"文本提取失败: {exc}") from exc
+
+    normalized = _normalize_text(raw_text)
+    total_chars = len(normalized)
+    truncated = total_chars > max_chars
+    text = normalized[:max_chars] if truncated else normalized
+
+    return {
+        "resource_id": resource.id,
+        "text": text,
+        "total_chars": total_chars,
+        "truncated": truncated,
+    }
+
 resource_service = ResourceService()
 
 @router.get("/", summary="获取教学资源列表")
@@ -185,6 +353,22 @@ async def get_resources(
         "page_size": result["page_size"],
         "pages": result["pages"]
     }
+
+@router.get("/{resource_id}/extract-text", summary="提取教学资源文本")
+async def extract_resource_text(
+    resource_id: int,
+    max_chars: int = Query(4000, ge=500, le=20000, description="最大返回字符数"),
+    current_user: User = Depends(AuthControl.is_authed)
+):
+    resource = await TeachingResourceModel.get_or_none(id=resource_id)
+    if not resource:
+        raise HTTPException(status_code=404, detail="资源不存在")
+
+    # 检查权限
+    if not resource.is_public and resource.uploader_id != current_user.id:
+        raise HTTPException(status_code=403, detail="无权访问该资源")
+
+    return await extract_resource_text_content(resource, max_chars)
 
 @router.post("/", summary="创建教学资源")
 async def create_resource(

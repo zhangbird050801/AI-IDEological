@@ -86,6 +86,7 @@ import { computed } from 'vue'
 import { NAvatar, NIcon, NSpace, NTag, NButton } from 'naive-ui'
 import { Icon } from '@iconify/vue'
 import MarkdownIt from 'markdown-it'
+import markdownItKatex from 'markdown-it-katex'
 
 const props = defineProps({
   message: {
@@ -114,10 +115,26 @@ const md = new MarkdownIt({
   breaks: true, // 转换换行符为 <br>
   // typographer: true, // 启用 typographer
 })
+md.use(markdownItKatex, { throwOnError: false })
 
 function renderMarkdown(content) {
   if (!content) return ''
-  return md.render(content)
+  let normalized = content
+    .replace(/\\\[((?:.|\n)*?)\\\]/g, (_, math) => `$$${math}$$`)
+    .replace(/\\\((.*?)\\\)/g, (_, math) => `$${math}$`)
+  const displayBlocks = []
+  normalized = normalized.replace(/\$\$([\s\S]*?)\$\$/g, (_, math) => {
+    const cleaned = math.replace(/\n+/g, ' ').trim()
+    const index = displayBlocks.length
+    displayBlocks.push(`$$${cleaned}$$`)
+    return `@@MATH_DISPLAY_${index}@@`
+  })
+  normalized = normalized.replace(/\$([^\$]+?)\$/g, (_, math) => {
+    const cleaned = math.replace(/\n+/g, ' ').trim()
+    return `$${cleaned}$`
+  })
+  normalized = normalized.replace(/@@MATH_DISPLAY_(\d+)@@/g, (_, index) => displayBlocks[index])
+  return md.render(normalized)
 }
 
 // function formatContent(content) {

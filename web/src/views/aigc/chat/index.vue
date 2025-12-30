@@ -1,5 +1,5 @@
 <template>
-  <AppPage>
+  <AppPage class="aigc-chat-wrapper">
     <div class="aigc-chat-page">
       <!-- <div class="page-header">
         <div class="header-content">
@@ -36,6 +36,26 @@
               @send="handleSendMessage"
               @clear-history="handleClearHistory"
             />
+            <div v-if="selectedResources.length" class="resource-attachments">
+              <n-space align="center" :size="8" wrap>
+                <span class="resource-attachments__label">已附加教学资源:</span>
+                <n-tag
+                  v-for="item in selectedResources"
+                  :key="item.id"
+                  size="small"
+                  closable
+                  @close="removeSelectedResource(item.id)"
+                >
+                  <template #icon>
+                    <n-icon><Icon icon="ant-design:file-outlined" /></n-icon>
+                  </template>
+                  {{ item.title }}
+                </n-tag>
+                <n-button size="tiny" text type="primary" @click="clearSelectedResources">
+                  清空
+                </n-button>
+              </n-space>
+            </div>
           </div>
         </div>
 
@@ -119,6 +139,10 @@
 
           <n-card title="⚡ 快捷操作" size="small">
             <n-space vertical :size="6">
+              <n-button size="small" block secondary @click="openResourceSelector">
+                <template #icon><n-icon><Icon icon="ant-design:folder-open-outlined" /></n-icon></template>
+                教学资源
+              </n-button>
               <n-button size="small" block secondary @click="showCaseLibrary">
                 <template #icon><n-icon><Icon icon="ant-design:library-outlined" /></n-icon></template>
                 案例库
@@ -137,6 +161,92 @@
       </div>
     </div>
     
+    <!-- 教学资源选择 -->
+    <n-modal
+      v-model:show="resourceSelectorVisible"
+      preset="card"
+      title="选择教学资源"
+      style="width: 980px; max-width: 94vw"
+    >
+      <n-space vertical :size="12">
+        <n-card size="small">
+          <n-space :size="12" align="center">
+            <n-input
+              v-model:value="resourceSearchForm.keyword"
+              placeholder="关键词"
+              clearable
+              size="small"
+              @keyup.enter="fetchResourceList"
+            />
+            <n-select
+              v-model:value="resourceSearchForm.resource_type"
+              :options="resourceTypeOptions"
+              placeholder="资源类型"
+              clearable
+              size="small"
+            />
+            <n-select
+              v-model:value="resourceSearchForm.software_engineering_chapter"
+              :options="chapterOptions"
+              placeholder="章节"
+              clearable
+              size="small"
+            />
+            <n-select
+              v-model:value="resourceSearchForm.theme_category_id"
+              :options="themeOptions"
+              placeholder="思政主题"
+              clearable
+              size="small"
+            />
+            <n-button size="small" type="primary" @click="fetchResourceList">
+              搜索
+            </n-button>
+            <n-button size="small" @click="resetResourceSearch">
+              重置
+            </n-button>
+          </n-space>
+        </n-card>
+
+        <n-data-table
+          :loading="resourceLoading"
+          :columns="resourceColumns"
+          :data="resourceList"
+          :row-key="row => row.id"
+          :checked-row-keys="selectedResourceIds"
+          @update:checked-row-keys="handleResourceSelection"
+        />
+
+        <n-space justify="space-between" align="center">
+          <n-pagination
+            v-model:page="resourcePagination.page"
+            v-model:page-size="resourcePagination.pageSize"
+            :item-count="resourcePagination.itemCount"
+            :page-sizes="resourcePagination.pageSizes"
+            show-size-picker
+            @update:page="fetchResourceList"
+            @update:page-size="handleResourcePageSizeChange"
+          />
+          <n-space>
+            <n-button size="small" @click="clearSelectedResources">
+              清空选择
+            </n-button>
+            <n-button size="small" type="primary" :loading="resourceApplying" @click="applySelectedResources">
+              使用选中资源
+            </n-button>
+          </n-space>
+        </n-space>
+
+        <div v-if="selectedResources.length" class="selected-resources">
+          <n-space>
+            <n-tag v-for="item in selectedResources" :key="item.id" size="small" closable @close="removeSelectedResource(item.id)">
+              {{ item.title }}
+            </n-tag>
+          </n-space>
+        </div>
+      </n-space>
+    </n-modal>
+
     <!-- 保存案例模态框 -->
     <n-modal
       v-model:show="saveCaseVisible"
@@ -233,7 +343,8 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, nextTick, watch } from 'vue'
+import { ref, reactive, onMounted, nextTick, watch, computed } from 'vue'
+import { useRouter } from 'vue-router'
 import {
   NSpace,
   NStatistic,
@@ -250,6 +361,9 @@ import {
   NDynamicTags,
   NGrid,
   NGi,
+  NDataTable,
+  NPagination,
+  NTag,
   useMessage,
   useLoadingBar,
 } from 'naive-ui'
@@ -260,11 +374,12 @@ import ChatInput from '@/components/chat/ChatInput.vue'
 import { chatAPI, chatStream } from '@/api/aigc'
 import { request } from '@/utils/http'
 import api from '@/api'
-import { templatesApi, themeCategoriesApi } from '@/api/ideological'
+import { templatesApi, themeCategoriesApi, resourcesApi } from '@/api/ideological'
 
 // 响应式数据
 const message = useMessage()
 const loadingBar = useLoadingBar()
+const router = useRouter()
 const chatContainer = ref()
 const chatInput = ref()
 
@@ -290,6 +405,28 @@ const chapterMap = ref({})
 const selectedTheme = ref(null)
 const selectedCaseType = ref(null)
 const extractingCaseFields = ref(false)
+
+// 教学资源选择
+const resourceSelectorVisible = ref(false)
+const resourceLoading = ref(false)
+const resourceApplying = ref(false)
+const resourceList = ref([])
+const resourceTypeOptions = ref([])
+const selectedResourceIds = ref([])
+const selectedResourceMap = reactive(new Map())
+const resourceContextText = ref('')
+const resourcePagination = reactive({
+  page: 1,
+  pageSize: 8,
+  itemCount: 0,
+  pageSizes: [8, 12, 20],
+})
+const resourceSearchForm = reactive({
+  keyword: '',
+  resource_type: null,
+  software_engineering_chapter: null,
+  theme_category_id: null,
+})
 
 // 保存案例相关
 const saveCaseVisible = ref(false)
@@ -320,6 +457,35 @@ const caseTypeOptions = [
 // 有效的case_type枚举值集合
 const validCaseTypeValues = new Set(caseTypeOptions.map(opt => opt.value))
 
+const resourceColumns = [
+  {
+    type: 'selection',
+  },
+  {
+    title: '标题',
+    key: 'title',
+    ellipsis: { tooltip: true },
+  },
+  {
+    title: '类型',
+    key: 'resource_type',
+    width: 120,
+    render: (row) => getResourceTypeLabel(row.resource_type),
+  },
+  {
+    title: '章节',
+    key: 'software_engineering_chapter',
+    width: 160,
+    ellipsis: { tooltip: true },
+  },
+  {
+    title: '思政主题',
+    key: 'theme_category_id',
+    width: 140,
+    render: (row) => resolveThemeLabel(row.theme_category_id),
+  },
+]
+
 // 验证并映射case_type，如果无效则返回null
 function validateCaseType(type) {
   if (!type) return null
@@ -338,6 +504,8 @@ function validateCaseType(type) {
   return null
 }
 
+const selectedResources = computed(() => Array.from(selectedResourceMap.values()))
+
 // 处理发送消息
 async function handleSendMessage(data) {
   const userMessage = {
@@ -355,6 +523,7 @@ async function handleSendMessage(data) {
   try {
     const msgArr = [
       { role: 'system', content: 'You are a helpful assistant.' },
+      ...(resourceContextText.value ? [{ role: 'system', content: resourceContextText.value }] : []),
       ...messages.value.map((m) => ({ role: m.role, content: m.content })),
     ]
 
@@ -826,8 +995,7 @@ function formatTime(timestamp) {
 
 // 显示案例库
 function showCaseLibrary() {
-  // 这里可以跳转到案例库页面或显示弹窗
-  message.info('即将跳转到案例库')
+  router.push({ path: '/aigc/cases' })
 }
 
 // 显示提示词模板
@@ -955,6 +1123,198 @@ function applyPromptPreset() {
   chatInput.value?.setContent(parts.filter(Boolean).join('\n'))
 }
 
+function openResourceSelector() {
+  resourceSelectorVisible.value = true
+  if (resourceTypeOptions.value.length === 0) {
+    fetchResourceTypes()
+  }
+  fetchResourceList()
+}
+
+async function fetchResourceTypes() {
+  try {
+    const res = await resourcesApi.getTypes()
+    resourceTypeOptions.value = normalizeResourceTypeOptions(res?.data || res)
+  } catch (error) {
+    resourceTypeOptions.value = normalizeResourceTypeOptions()
+  }
+}
+
+function normalizeResourceTypeOptions(input) {
+  const defaults = [
+    { label: '文档', value: 'document' },
+    { label: '视频', value: 'video' },
+    { label: '音频', value: 'audio' },
+    { label: '图片', value: 'image' },
+    { label: '演示文稿', value: 'presentation' },
+    { label: '虚拟仿真', value: 'simulation' },
+    { label: '外部链接', value: 'link' },
+    { label: '其他', value: 'other' },
+  ]
+
+  if (!input) return defaults
+  if (Array.isArray(input)) {
+    if (input.length === 0) return defaults
+    if (typeof input[0] === 'string') {
+      return input.map((v) => ({ label: v, value: v }))
+    }
+    if (typeof input[0] === 'object') {
+      return input.map((v) => ({
+        label: v.label || v.name || v.value || '未知类型',
+        value: v.value || v.name || v.label || 'other',
+      }))
+    }
+  }
+  return defaults
+}
+
+function getResourceTypeLabel(type) {
+  const list = Array.isArray(resourceTypeOptions.value) ? resourceTypeOptions.value : []
+  const option = list.find((item) => item?.value === type)
+  return option ? option.label : type || '未知类型'
+}
+
+function resolveThemeLabel(themeId) {
+  if (!themeId) return ''
+  const option = themeOptions.value.find((item) => item.value === themeId)
+  return option ? option.label : ''
+}
+
+async function fetchResourceList() {
+  resourceLoading.value = true
+  try {
+    const params = {
+      ...resourceSearchForm,
+      page: resourcePagination.page,
+      page_size: resourcePagination.pageSize,
+    }
+    const res = await resourcesApi.getList(params)
+    const data = res?.data || res || {}
+    resourceList.value = data.items || []
+    resourcePagination.itemCount = data.total || 0
+    selectedResourceIds.value = Array.from(selectedResourceMap.keys())
+  } catch (error) {
+    message.error('获取教学资源失败')
+  } finally {
+    resourceLoading.value = false
+  }
+}
+
+function handleResourcePageSizeChange(pageSize) {
+  resourcePagination.pageSize = pageSize
+  resourcePagination.page = 1
+  fetchResourceList()
+}
+
+function resetResourceSearch() {
+  Object.assign(resourceSearchForm, {
+    keyword: '',
+    resource_type: null,
+    software_engineering_chapter: null,
+    theme_category_id: null,
+  })
+  resourcePagination.page = 1
+  fetchResourceList()
+}
+
+function handleResourceSelection(keys) {
+  selectedResourceIds.value = keys
+  const currentIds = new Set(resourceList.value.map((r) => r.id))
+  resourceList.value.forEach((r) => {
+    if (currentIds.has(r.id) && !keys.includes(r.id)) {
+      selectedResourceMap.delete(r.id)
+    }
+  })
+  resourceList.value.forEach((r) => {
+    if (keys.includes(r.id)) {
+      selectedResourceMap.set(r.id, r)
+    }
+  })
+}
+
+function clearSelectedResources() {
+  selectedResourceIds.value = []
+  selectedResourceMap.clear()
+  resourceContextText.value = ''
+}
+
+function removeSelectedResource(id) {
+  selectedResourceMap.delete(id)
+  selectedResourceIds.value = selectedResourceIds.value.filter((key) => key !== id)
+  if (selectedResourceIds.value.length === 0) {
+    resourceContextText.value = ''
+  }
+}
+
+function resolveResourceLink(resource) {
+  const url = resource?.external_url || resource?.preview_url || resource?.file_url || resource?.download_url
+  if (!url) return ''
+  if (url.startsWith('http')) return url
+  try {
+    return new URL(url, window.location.origin).href
+  } catch (e) {
+    return ''
+  }
+}
+
+function buildResourcePrompt(resources) {
+  const lines = ['参考教学资源：']
+  resources.forEach((item, index) => {
+    const linePrefix = `${index + 1}.`
+    lines.push(`${linePrefix} 标题：${item.title || '-'}`)
+    if (item.description) lines.push(`   描述：${item.description}`)
+    if (item.resource_type) lines.push(`   类型：${getResourceTypeLabel(item.resource_type)}`)
+    if (item.software_engineering_chapter) {
+      lines.push(`   章节：${item.software_engineering_chapter}`)
+    }
+    const themeLabel = resolveThemeLabel(item.theme_category_id)
+    if (themeLabel) lines.push(`   思政主题：${themeLabel}`)
+    const link = resolveResourceLink(item)
+    if (link) lines.push(`   链接：${link}`)
+    if (item.extractedText) {
+      lines.push(`   内容摘要：${item.extractedText}`)
+    }
+  })
+  lines.push('请结合以上教学资源内容回答。')
+  return lines.join('\n')
+}
+
+async function fetchResourceExtract(resource) {
+  try {
+    const res = await request.get(`/ideological/resources/${resource.id}/extract-text`, {
+      params: { max_chars: 1500 },
+    })
+    const data = res?.data || res || {}
+    return data.text || ''
+  } catch (error) {
+    return ''
+  }
+}
+
+async function applySelectedResources() {
+  if (selectedResources.value.length === 0) {
+    message.warning('请先选择教学资源')
+    return
+  }
+  resourceApplying.value = true
+  try {
+    const items = selectedResources.value
+    const extractedList = await Promise.all(items.map((item) => fetchResourceExtract(item)))
+    const enriched = items.map((item, index) => ({
+      ...item,
+      extractedText: extractedList[index],
+    }))
+    const missingCount = enriched.filter((item) => !item.extractedText).length
+    if (missingCount > 0) {
+      message.warning(`有 ${missingCount} 个资源未能读取内容，已仅附加基础信息`)
+    }
+    resourceContextText.value = buildResourcePrompt(enriched)
+    resourceSelectorVisible.value = false
+  } finally {
+    resourceApplying.value = false
+  }
+}
+
 // 组件挂载时初始化
 onMounted(() => {
   // 模拟加载统计数据
@@ -1030,8 +1390,16 @@ watch(
 <style scoped>
 .aigc-chat-page {
   height: 100%;
+  flex: 1;
   display: flex;
   flex-direction: column;
+  min-height: 0;
+  min-height: 100%;
+}
+
+:deep(.aigc-chat-wrapper) {
+  padding-bottom: 0;
+  overflow: hidden;
 }
 
 .page-header {
@@ -1078,6 +1446,8 @@ watch(
   display: flex;
   gap: 12px;
   min-height: 0;
+  height: 100%;
+  min-height: 100%;
 }
 
 .chat-main {
@@ -1085,7 +1455,10 @@ watch(
   display: flex;
   flex-direction: column;
   min-height: 0;
-  max-height: calc(100vh - 120px);
+  height: 100%;
+  max-height: none;
+  min-height: 100%;
+  justify-content: space-between;
   background: rgba(250, 250, 252, 0.5);
   border-radius: 8px;
   overflow: hidden;
@@ -1098,7 +1471,21 @@ watch(
   background: rgba(255, 255, 255, 0.98);
   border-top: 1px solid rgba(0, 0, 0, 0.06);
   box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.04);
-  min-height: 150px;
+  min-height: 92px;
+  margin-top: auto;
+}
+
+.resource-attachments {
+  margin-top: 8px;
+  padding: 8px 12px;
+  border: 1px dashed var(--n-border-color);
+  border-radius: 8px;
+  background: var(--n-color-hover);
+}
+
+.resource-attachments__label {
+  font-size: 12px;
+  color: var(--n-text-color-depth-3);
 }
 
 .sidebar {
@@ -1107,6 +1494,8 @@ watch(
   display: flex;
   flex-direction: column;
   gap: 10px;
+  overflow-y: auto;
+  max-height: 100%;
 }
 
 .sidebar :deep(.n-card) {

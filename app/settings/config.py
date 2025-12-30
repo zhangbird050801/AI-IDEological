@@ -51,9 +51,11 @@ class Settings(BaseSettings):
     }
     DATETIME_FORMAT: str = "%Y-%m-%d %H:%M:%S"
 
-    # AIGC / DeepSeek configuration (read from .env)
+    # AIGC configuration (read from .env)
     DEEPSEEK_API_KEY: str | None = None
     DEEPSEEK_API_BASE: str = "https://api.deepseek.com"
+    MOONSHOT_API_KEY: str | None = None
+    MOONSHOT_API_BASE: str = "https://api.moonshot.cn/v1"
     AIGC_PROVIDER: str = "deepseek"
     AIGC_MODEL: str = "deepseek-chat"
     AIGC_TIMEOUT: str | int = 60000

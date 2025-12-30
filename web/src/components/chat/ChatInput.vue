@@ -1,54 +1,42 @@
 <template>
   <div class="chat-input-container">
-    <div class="input-toolbar">
-      <n-space>
-        <n-tooltip trigger="hover">
-          <template #trigger>
-            <n-button size="small" quaternary circle @click="showPromptTemplates = true">
-              <template #icon
-                ><n-icon><Icon icon="ant-design:book-outlined" /></n-icon
-              ></template>
-            </n-button>
-          </template>
-          提示词模板
-        </n-tooltip>
+    <div class="input-controls">
+      <div class="input-toolbar">
+        <n-space>
+          <n-tooltip trigger="hover">
+            <template #trigger>
+              <n-button size="small" quaternary circle @click="showPromptTemplates = true">
+                <template #icon
+                  ><n-icon><Icon icon="ant-design:book-outlined" /></n-icon
+                ></template>
+              </n-button>
+            </template>
+            提示词模板
+          </n-tooltip>
 
-        <n-tooltip trigger="hover">
-          <template #trigger>
-            <n-button size="small" quaternary circle @click="$refs.fileInput.click()">
-              <template #icon
-                ><n-icon><Icon icon="mdi:attachment" /></n-icon
-              ></template>
-            </n-button>
-          </template>
-          上传文件
-        </n-tooltip>
+          <n-tooltip trigger="hover">
+            <template #trigger>
+              <n-button size="small" quaternary circle @click="$refs.fileInput.click()">
+                <template #icon
+                  ><n-icon><Icon icon="mdi:attachment" /></n-icon
+                ></template>
+              </n-button>
+            </template>
+            上传文件
+          </n-tooltip>
 
-        <n-tooltip trigger="hover">
-          <template #trigger>
-            <n-button size="small" quaternary circle @click="clearInput">
-              <template #icon
-                ><n-icon><Icon icon="ant-design:delete-outlined" /></n-icon
-              ></template>
-            </n-button>
-          </template>
-          清空输入
-        </n-tooltip>
-      </n-space>
-    </div>
-
-    <div class="input-area">
-      <n-input
-        ref="inputRef"
-        v-model:value="inputText"
-        type="textarea"
-        :placeholder="placeholder"
-        :autosize="{ minRows: 5, maxRows: 12 }"
-        :disabled="loading"
-        @keydown="handleKeydown"
-        @focus="$emit('focus')"
-        @blur="$emit('blur')"
-      />
+          <n-tooltip trigger="hover">
+            <template #trigger>
+              <n-button size="small" quaternary circle @click="clearInput">
+                <template #icon
+                  ><n-icon><Icon icon="ant-design:delete-outlined" /></n-icon
+                ></template>
+              </n-button>
+            </template>
+            清空输入
+          </n-tooltip>
+        </n-space>
+      </div>
 
       <div class="input-actions">
         <div class="input-info">
@@ -74,6 +62,21 @@
           </n-button>
         </n-space>
       </div>
+    </div>
+
+    <div class="input-area">
+      <n-input
+        ref="inputRef"
+        v-model:value="inputText"
+        type="textarea"
+        :placeholder="placeholder"
+        :autosize="{ minRows: 2, maxRows: 6 }"
+        :disabled="loading"
+        @keydown="handleKeydown"
+        @focus="$emit('focus')"
+        @blur="$emit('blur')"
+      />
+
     </div>
 
     <!-- 文件上传 -->
@@ -317,6 +320,7 @@ defineExpose({
   focus: () => inputRef.value?.focus(),
   clear: clearInput,
   setContent,
+  getContent: () => inputText.value,
 })
 </script>
 
@@ -325,8 +329,8 @@ defineExpose({
   background: var(--n-color);
   border: 1px solid var(--n-border-color);
   border-radius: 12px;
-  padding: 16px;
-  min-height: 160px;
+  padding: 12px;
+  min-height: 96px;
   transition: all 0.3s ease;
 }
 
@@ -335,36 +339,42 @@ defineExpose({
   box-shadow: 0 0 0 2px var(--n-primary-color-suppl);
 }
 
-.input-toolbar {
-  margin-bottom: 12px;
-  padding-bottom: 8px;
+.input-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+  padding-bottom: 6px;
   border-bottom: 1px solid var(--n-divider-color);
+}
+
+.input-toolbar {
+  flex-shrink: 0;
 }
 
 .input-area {
   position: relative;
-  min-height: 100px;
+  min-height: 56px;
 }
 
 .input-area .n-input {
-  min-height: 100px;
+  min-height: 56px;
 }
 
 .input-area .n-input .n-input__textarea {
-  min-height: 100px !important;
-  line-height: 1.8;
-  padding: 16px;
+  min-height: 56px !important;
+  line-height: 1.6;
+  padding: 12px;
   font-size: 14px;
   resize: none;
 }
 
 .input-actions {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end;
   align-items: center;
-  margin-top: 12px;
-  padding-top: 8px;
-  border-top: 1px solid var(--n-divider-color);
+  gap: 10px;
 }
 
 .input-info {
@@ -388,10 +398,14 @@ defineExpose({
     padding: 12px;
   }
 
+  .input-controls {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+
   .input-actions {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: flex-start;
   }
 
   .input-info {
