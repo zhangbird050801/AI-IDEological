@@ -21,11 +21,13 @@ from app.schemas.ideological import (
     BatchOperationResponse,
 )
 from app.models.ideological import TeachingResource as TeachingResourceModel, ResourceType
+from app.models.chapter import Chapter
 from app.models.admin import User
 from app.core.dependency import AuthControl
 from app.core.crud import CRUDBase
 from app.core.aigc.aigc_client import AIGCClient
 from app.settings.config import settings
+from app.services.recommendation_service import RecommendationService
 
 router = APIRouter()
 
@@ -42,6 +44,7 @@ class ResourceService(CRUDBase[TeachingResourceModel, TeachingResourceCreate, Te
         obj_data["uploader_id"] = user_id
         if file_path:
             obj_data["file_path"] = file_path
+        obj_data = await _hydrate_course_chapter(obj_data)
         return await self.create(obj_data)
 
     async def get_resources_with_search(self, search_request: ResourceSearchRequest, user_id: int = None):
@@ -67,8 +70,18 @@ class ResourceService(CRUDBase[TeachingResourceModel, TeachingResourceCreate, Te
         if search_request.resource_type:
             query = query.filter(resource_type=search_request.resource_type)
 
-        if search_request.software_engineering_chapter:
+        if search_request.chapter_id and search_request.software_engineering_chapter:
+            query = query.filter(
+                Q(chapter_id=search_request.chapter_id) |
+                Q(software_engineering_chapter__icontains=search_request.software_engineering_chapter)
+            )
+        elif search_request.chapter_id:
+            query = query.filter(chapter_id=search_request.chapter_id)
+        elif search_request.software_engineering_chapter:
             query = query.filter(software_engineering_chapter__icontains=search_request.software_engineering_chapter)
+
+        if search_request.course_id:
+            query = query.filter(course_id=search_request.course_id)
 
         if search_request.theme_category_id:
             query = query.filter(theme_category_id=search_request.theme_category_id)
@@ -158,6 +171,32 @@ class ResourceService(CRUDBase[TeachingResourceModel, TeachingResourceCreate, Te
             "file_format": file_extension.lstrip('.'),
             "resource_type": resource_type
         }
+
+
+async def _hydrate_course_chapter(obj_data: dict) -> dict:
+    chapter_id = obj_data.get("chapter_id")
+    course_id = obj_data.get("course_id")
+    chapter_name = obj_data.get("software_engineering_chapter")
+
+    if chapter_id:
+        chapter = await Chapter.get_or_none(id=chapter_id)
+        if chapter:
+            obj_data["software_engineering_chapter"] = chapter.name
+            if not course_id:
+                obj_data["course_id"] = chapter.course_id
+        return obj_data
+
+    if chapter_name:
+        query = Chapter.filter(name=chapter_name)
+        if course_id:
+            query = query.filter(course_id=course_id)
+        chapter = await query.first()
+        if chapter:
+            obj_data["chapter_id"] = chapter.id
+            if not course_id:
+                obj_data["course_id"] = chapter.course_id
+
+    return obj_data
 
 def _normalize_text(text: str) -> str:
     if not text:
@@ -327,6 +366,8 @@ async def get_resources(
     keyword: str = Query(None, description="关键词搜索"),
     resource_type: str = Query(None, description="资源类型"),
     software_engineering_chapter: str = Query(None, description="软件工程章节"),
+    course_id: int = Query(None, description="课程ID"),
+    chapter_id: int = Query(None, description="章节ID"),
     theme_category_id: int = Query(None, description="思政主题分类ID"),
     page: int = Query(1, ge=1, description="页码"),
     page_size: int = Query(10, ge=1, le=100, description="每页数量"),
@@ -336,6 +377,8 @@ async def get_resources(
         keyword=keyword,
         resource_type=resource_type,
         software_engineering_chapter=software_engineering_chapter,
+        course_id=course_id,
+        chapter_id=chapter_id,
         theme_category_id=theme_category_id,
         page=page,
         page_size=page_size
@@ -370,6 +413,26 @@ async def extract_resource_text(
 
     return await extract_resource_text_content(resource, max_chars)
 
+
+@router.get("/recommended/list", summary="获取推荐教学资源")
+async def get_recommended_resources(
+    course_id: int = Query(None, description="课程ID"),
+    chapter_id: int = Query(None, description="章节ID"),
+    theme_category_id: int = Query(None, description="思政主题分类ID"),
+    resource_types: str = Query(None, description="资源类型列表，逗号分隔"),
+    limit: int = Query(5, ge=1, le=20, description="返回数量"),
+    current_user: User = Depends(AuthControl.is_authed)
+):
+    types = [t.strip() for t in resource_types.split(",") if t.strip()] if resource_types else None
+    resources = await RecommendationService.get_resource_recommendations(
+        course_id=course_id,
+        chapter_id=chapter_id,
+        theme_category_id=theme_category_id,
+        resource_types=types,
+        limit=limit
+    )
+    return [TeachingResource.from_orm(item) for item in resources]
+
 @router.post("/", summary="创建教学资源")
 async def create_resource(
     title: str = Form(...),
@@ -378,6 +441,8 @@ async def create_resource(
     external_url: str = Form(None),
     tags: str = Form(None),
     software_engineering_chapter: str = Form(None),
+    course_id: int = Form(None),
+    chapter_id: int = Form(None),
     theme_category_id: int = Form(None),
     is_public: bool = Form(True),
     file: UploadFile = File(None),
@@ -400,6 +465,8 @@ async def create_resource(
         "external_url": external_url,
         "tags": tags_list,
         "software_engineering_chapter": software_engineering_chapter,
+        "course_id": course_id,
+        "chapter_id": chapter_id,
         "theme_category_id": theme_category_id,
         "is_public": is_public
     }
@@ -469,6 +536,7 @@ async def update_resource(
         raise HTTPException(status_code=403, detail="无权修改该资源")
 
     update_data = resource_in.dict(exclude_unset=True)
+    update_data = await _hydrate_course_chapter(update_data)
     await resource.update_from_dict(update_data)
     await resource.save()
 

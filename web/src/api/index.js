@@ -1,6 +1,7 @@
 import { request } from '@/utils'
 import * as courseApi from './courses'
 import { casesApi, templatesApi, resourcesApi, promptAssistantApi } from './ideological'
+import * as aigcHistoryApi from './aigc-history'
 
 // Core system APIs
 const baseApis = {
@@ -50,4 +51,5 @@ export default {
   ...templatesApi,
   ...resourcesApi,
   ...promptAssistantApi,
+  ...aigcHistoryApi,
 }

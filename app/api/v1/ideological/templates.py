@@ -297,6 +297,19 @@ async def rate_template(
     template = await template_service.update_template_rating(template_id, rating)
     return PromptTemplate.model_validate(template)
 
+@router.post("/{template_id}/use", summary="使用模板（增加使用次数）")
+async def use_template(
+    template_id: int,
+    current_user: User = Depends(AuthControl.is_authed)
+):
+    template = await PromptTemplateModel.get_or_none(id=template_id, is_active=True)
+    if not template:
+        raise HTTPException(status_code=404, detail="模板不存在或已禁用")
+
+    await template.update_from_dict({"usage_count": template.usage_count + 1})
+    await template.save()
+    return PromptTemplate.model_validate(template)
+
 @router.post("/{template_id}/render", summary="渲染模板")
 async def render_template(
     template_id: int,

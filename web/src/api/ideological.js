@@ -23,7 +23,7 @@ export const casesApi = {
   // 收藏/取消收藏
   toggleFavorite: (id, favorited = true) => request.post(`/ideological/cases/${id}/favorite`, { favorited }),
   // 获取章节列表
-  getChapters: () => request.get('/ideological/cases/chapters/list'),
+  getChapters: (params = {}) => request.get('/ideological/cases/chapters/list', { params }),
   // 获取思政主题列表
   getThemes: () => request.get('/ideological/cases/themes/list'),
 }
@@ -44,6 +44,8 @@ export const templatesApi = {
   batchOperation: (data = {}) => request.post('/ideological/templates/batch', data),
   // 获取系统模板
   getSystem: () => request.get('/ideological/templates/system/list'),
+  // 使用模板（增加使用次数）
+  use: (id) => request.post(`/ideological/templates/${id}/use`),
   // 评分模板
   rate: (id, rating) => request.post(`/ideological/templates/${id}/rate`, {}, { params: { rating } }),
   // 渲染模板
@@ -84,6 +86,8 @@ export const resourcesApi = {
   batchOperation: (data = {}) => request.post('/ideological/resources/batch', data),
   // 获取热门资源
   getHot: (params = {}) => request.get('/ideological/resources/hot/list', { params }),
+  // 获取推荐资源
+  getRecommended: (params = {}) => request.get('/ideological/resources/recommended/list', { params }),
   // 下载文件
   download: (fileUuid) => request.get(`/ideological/resources/download/${fileUuid}`, { responseType: 'blob' }),
   // 获取资源类型列表

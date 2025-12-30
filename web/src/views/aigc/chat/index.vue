@@ -94,6 +94,15 @@
           <n-card title="⚙️ 上下文配置" size="small">
             <n-space vertical :size="8">
               <n-select
+                v-model:value="selectedCourseId"
+                :options="courseOptions"
+                placeholder="选择课程"
+                clearable
+                filterable
+                size="small"
+                @update:value="handleCourseChange"
+              />
+              <n-select
                 v-model:value="selectedTemplateId"
                 :options="templateOptions"
                 placeholder="选择提示词模板"
@@ -128,6 +137,10 @@
                 size="small"
                 @update:value="applyPromptPreset"
               />
+              <n-switch v-model:value="autoAttachResources" size="small">
+                <template #checked>自动引用资源</template>
+                <template #unchecked>自动引用资源</template>
+              </n-switch>
               <n-button size="small" block type="primary" @click="applyPromptPreset">
                 <template #icon>
                   <n-icon><Icon icon="ant-design:edit-outlined" /></n-icon>
@@ -170,11 +183,10 @@
     >
       <n-space vertical :size="12">
         <n-card size="small">
-          <n-space :size="12" align="center">
+          <n-space class="resource-search-bar" :size="12" align="center" wrap>
             <n-input
               v-model:value="resourceSearchForm.keyword"
               placeholder="关键词"
-              clearable
               size="small"
               @keyup.enter="fetchResourceList"
             />
@@ -182,21 +194,18 @@
               v-model:value="resourceSearchForm.resource_type"
               :options="resourceTypeOptions"
               placeholder="资源类型"
-              clearable
               size="small"
             />
             <n-select
-              v-model:value="resourceSearchForm.software_engineering_chapter"
+              v-model:value="resourceSearchForm.chapter_id"
               :options="chapterOptions"
               placeholder="章节"
-              clearable
               size="small"
             />
             <n-select
               v-model:value="resourceSearchForm.theme_category_id"
               :options="themeOptions"
               placeholder="思政主题"
-              clearable
               size="small"
             />
             <n-button size="small" type="primary" @click="fetchResourceList">
@@ -271,7 +280,7 @@
             <n-gi>
               <n-form-item label="软件工程章节" required>
                 <n-select
-                  v-model:value="caseForm.software_engineering_chapter"
+                  v-model:value="caseForm.chapter_id"
                   :options="chapterOptions"
                   placeholder="请选择章节"
                   filterable
@@ -339,6 +348,25 @@
         </n-form>
       </n-spin>
     </n-modal>
+
+    <!-- 生成历史弹窗 -->
+    <n-modal v-model:show="historyModalVisible" preset="card" title="生成历史" style="width: 720px; max-width: 92vw">
+      <div v-if="chatHistory.length === 0" class="history-modal-empty">
+        <n-empty size="small" description="暂无历史记录" />
+      </div>
+      <div v-else class="history-modal-list">
+        <div
+          v-for="session in chatHistory"
+          :key="session.id"
+          class="history-modal-item"
+          @click="handleHistorySelect(session.id)"
+        >
+          <div class="history-modal-title">{{ session.title }}</div>
+          <div class="history-modal-preview">{{ getHistoryPreview(session) }}</div>
+          <div class="history-modal-time">{{ formatTime(session.createdAt) }}</div>
+        </div>
+      </div>
+    </n-modal>
   </AppPage>
 </template>
 
@@ -372,9 +400,11 @@ import AppPage from '@/components/page/AppPage.vue'
 import ChatContainer from '@/components/chat/ChatContainer.vue'
 import ChatInput from '@/components/chat/ChatInput.vue'
 import { chatAPI, chatStream } from '@/api/aigc'
+import { createGenerationHistory } from '@/api/aigc-history'
 import { request } from '@/utils/http'
 import api from '@/api'
 import { templatesApi, themeCategoriesApi, resourcesApi } from '@/api/ideological'
+import { useUserStore } from '@/store'
 
 // 响应式数据
 const message = useMessage()
@@ -382,6 +412,7 @@ const loadingBar = useLoadingBar()
 const router = useRouter()
 const chatContainer = ref()
 const chatInput = ref()
+const userStore = useUserStore()
 
 // 聊天数据
 const messages = ref([])
@@ -398,6 +429,8 @@ const chatHistory = ref([])
 
 // 侧栏选择
 const templateOptions = ref([])
+const courseOptions = ref([])
+const selectedCourseId = ref(null)
 const selectedTemplateId = ref(null)
 const chapterOptionsRich = ref([])
 const selectedChapterId = ref(null)
@@ -405,6 +438,7 @@ const chapterMap = ref({})
 const selectedTheme = ref(null)
 const selectedCaseType = ref(null)
 const extractingCaseFields = ref(false)
+const autoAttachResources = ref(true)
 
 // 教学资源选择
 const resourceSelectorVisible = ref(false)
@@ -425,15 +459,20 @@ const resourceSearchForm = reactive({
   keyword: '',
   resource_type: null,
   software_engineering_chapter: null,
+  course_id: null,
+  chapter_id: null,
   theme_category_id: null,
 })
 
 // 保存案例相关
 const saveCaseVisible = ref(false)
 const currentSaveMessage = ref(null)
+const historyModalVisible = ref(false)
 const caseForm = reactive({
   title: '',
   software_engineering_chapter: '',
+  course_id: null,
+  chapter_id: null,
   theme_category_id: null,
   case_type: 'case_study',
   tags: [],
@@ -514,6 +553,7 @@ async function handleSendMessage(data) {
     content: data.content,
     attachments: data.attachments,
     timestamp: new Date().toISOString(),
+    avatar: userStore.avatar || '',
   }
 
   messages.value.push(userMessage)
@@ -521,6 +561,7 @@ async function handleSendMessage(data) {
   loadingBar.start()
 
   try {
+    await maybeAutoAttachResources()
     const msgArr = [
       { role: 'system', content: 'You are a helpful assistant.' },
       ...(resourceContextText.value ? [{ role: 'system', content: resourceContextText.value }] : []),
@@ -565,10 +606,30 @@ async function handleSendMessage(data) {
               textToAppend += obj.data
             }
           } else if (item && item.type === 'text') {
-            textToAppend += String(item.payload)
+            const rawText = String(item.payload || '')
+            const trimmed = rawText.trim()
+            if (!trimmed) {
+              textToAppend += ''
+            } else if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+              try {
+                const parsed = JSON.parse(trimmed)
+                if (parsed && typeof parsed === 'object') {
+                  if (Array.isArray(parsed.choices)) {
+                    // Ignore raw stream chunks accidentally surfaced as text.
+                  } else if (typeof parsed.data === 'string') {
+                    textToAppend += parsed.data
+                  }
+                }
+              } catch (e) {
+                textToAppend += rawText
+              }
+            } else {
+              textToAppend += rawText
+            }
           } else {
-            // unknown shape, stringify
-            textToAppend += JSON.stringify(item)
+            if (typeof item === 'string') {
+              textToAppend += item
+            }
           }
         } catch (e) {
           textToAppend = String(item)
@@ -586,8 +647,7 @@ async function handleSendMessage(data) {
       todayGenerated.value++
       totalCases.value++
       
-      // 保存生成历史到后端（暂时注释掉，避免错误）
-      // await saveGenerationHistory(userMessage.content, assistantMessage.content, assistantMessage)
+      await saveGenerationHistory(userMessage.content, assistantMessage.content, assistantMessage)
       
       saveToHistory()
     } catch (streamErr) {
@@ -610,8 +670,7 @@ async function handleSendMessage(data) {
       todayGenerated.value++
       totalCases.value++
       
-      // 保存生成历史到后端（暂时注释掉，避免错误）
-      // await saveGenerationHistory(userMessage.content, finalReply, fallbackMessage)
+      await saveGenerationHistory(userMessage.content, finalReply, fallbackMessage)
       
       saveToHistory()
     }
@@ -649,21 +708,23 @@ function handleRegenerate(messageId) {
 // 保存生成历史到后端
 async function saveGenerationHistory(userInput, generatedContent, messageObj) {
   try {
-    // 暂时为每条消息生成一个临时ID（后续需要实现真实的后端保存）
+    const chapter = chapterMap.value[selectedChapterId.value]
+    const historyData = {
+      user_input: userInput,
+      generated_content: generatedContent,
+      generation_type: 'aigc_chat',
+      software_engineering_chapter: chapter?.name || null,
+      course_id: selectedCourseId.value,
+      chapter_id: selectedChapterId.value,
+      theme_category_id: selectedTheme.value,
+    }
+    const response = await createGenerationHistory(historyData)
+    const data = response?.data || response || {}
+    if (data && data.id) {
+      messageObj.historyId = data.id
+      return
+    }
     messageObj.historyId = Date.now()
-    
-    // TODO: 实现真实的后端API调用
-    // const historyData = {
-    //   user_input: userInput,
-    //   generated_content: generatedContent,
-    //   generation_type: 'aigc_chat',
-    //   software_engineering_chapter: '',
-    //   ideological_theme: '',
-    // }
-    // const response = await request.post('/aigc/enhanced/history', historyData)
-    // if (response && response.id) {
-    //   messageObj.historyId = response.id
-    // }
   } catch (error) {
     console.error('保存生成历史失败:', error)
     // 即使失败也分配一个临时ID，确保功能可用
@@ -685,6 +746,8 @@ async function handleSaveCase(messageObj) {
   Object.assign(caseForm, {
     title: '',
     software_engineering_chapter: '',
+    course_id: selectedCourseId.value,
+    chapter_id: selectedChapterId.value,
     theme_category_id: null,
     case_type: 'case_study',
     tags: [],
@@ -727,7 +790,7 @@ async function autoFillCaseForm(content) {
   if (explicitTitle) caseForm.title = explicitTitle
 
   const chapter = matchField(['软件工程章节', '章节'])
-  if (chapter) caseForm.software_engineering_chapter = chapter
+  if (chapter) applyCaseChapter(chapter)
 
   const theme = matchField(['思政主题', '主题'])
   if (theme) {
@@ -761,8 +824,9 @@ async function autoFillCaseForm(content) {
   const aiData = await aiExtractCaseMetadata(content)
   if (aiData) {
     caseForm.title = aiData.title || caseForm.title
-    caseForm.software_engineering_chapter =
+    const incomingChapter =
       aiData.software_engineering_chapter || aiData.chapter || caseForm.software_engineering_chapter
+    if (incomingChapter) applyCaseChapter(incomingChapter)
     // 如果AI返回了主题名称，查找对应的ID
     const themeName = aiData.ideological_theme || aiData.theme
     if (themeName) {
@@ -900,16 +964,21 @@ async function confirmSaveCase() {
   return new Promise(async (resolve, reject) => {
     try {
       // 验证必填字段
-      if (!caseForm.title || !caseForm.software_engineering_chapter || !caseForm.theme_category_id) {
+      if (!caseForm.title || !(caseForm.chapter_id || caseForm.software_engineering_chapter) || !caseForm.theme_category_id) {
         message.error('请填写所有必填项')
         reject(new Error('缺少必填项'))
         return
       }
+      const chapter = chapterMap.value[caseForm.chapter_id]
+      const chapterName = chapter?.name || caseForm.software_engineering_chapter
+      const courseId = caseForm.course_id || chapter?.course_id || selectedCourseId.value
       
       const caseData = {
         title: caseForm.title.trim(),
         content: currentSaveMessage.value.content, // 直接使用消息内容
-        software_engineering_chapter: caseForm.software_engineering_chapter,
+        software_engineering_chapter: chapterName,
+        course_id: courseId,
+        chapter_id: caseForm.chapter_id,
         theme_category_id: caseForm.theme_category_id,
         case_type: caseForm.case_type || 'case_study',
         tags: caseForm.tags || [],
@@ -1018,25 +1087,81 @@ function exportCurrentChat() {
 
 // 显示全部历史
 function showAllHistory() {
-  message.info('查看全部历史功能开发中')
+  historyModalVisible.value = true
+}
+
+function handleHistorySelect(sessionId) {
+  loadSession(sessionId)
+  historyModalVisible.value = false
+}
+
+function getHistoryPreview(session) {
+  const list = Array.isArray(session?.messages) ? session.messages : []
+  if (list.length === 0) return '暂无内容'
+  const last = list[list.length - 1]
+  const text = String(last?.content || '').replace(/\s+/g, ' ').trim()
+  return text || '暂无内容'
+}
+
+async function fetchCourseOptions() {
+  try {
+    const res = await api.getAllCourses(true)
+    const courses = res?.data || res || []
+    courseOptions.value = courses.map((item) => ({
+      label: item.name,
+      value: item.id,
+    }))
+    if (!selectedCourseId.value && courseOptions.value.length > 0) {
+      selectedCourseId.value = courseOptions.value[0].value
+    }
+  } catch (error) {
+    courseOptions.value = []
+  }
+}
+
+async function fetchChapterOptions(courseId) {
+  if (!courseId) {
+    chapterOptionsRich.value = []
+    chapterOptions.value = []
+    chapterMap.value = {}
+    return
+  }
+  try {
+    const res = await api.getChaptersByCourse(courseId)
+    const chapters = res?.data || res || []
+    chapterOptionsRich.value = chapters.map((c) => ({
+      label: c.name,
+      value: c.id,
+      desc: c.description,
+    }))
+    chapterOptions.value = chapters.map((c) => ({
+      label: c.name,
+      value: c.id,
+    }))
+    chapterMap.value = Object.fromEntries(chapters.map((c) => [c.id, c]))
+  } catch (error) {
+    chapterOptionsRich.value = []
+    chapterOptions.value = []
+    chapterMap.value = {}
+  }
+}
+
+function handleCourseChange(value) {
+  selectedCourseId.value = value
+  selectedChapterId.value = null
+  resourceSearchForm.course_id = value
+  resourceSearchForm.chapter_id = null
+  resourceSearchForm.software_engineering_chapter = null
+  fetchChapterOptions(value)
 }
 
 // 获取选项数据
 async function fetchOptions() {
-  try {
-    const chaptersResponse = await request.get('/ideological/cases/chapters/list')
-    chapterOptions.value = (chaptersResponse.data || chaptersResponse || []).map(item => ({
-      label: item,
-      value: item
-    }))
-  } catch (error) {
-    console.error('获取章节选项失败:', error)
-    chapterOptions.value = [
-      '软件工程概述', '软件过程模型', '需求分析', '系统设计', '编码实现',
-      '软件测试', '软件维护', '项目管理', '软件质量', '软件工程前沿'
-    ].map(item => ({ label: item, value: item }))
-  }
-  
+  await fetchCourseOptions()
+  await fetchChapterOptions(selectedCourseId.value)
+  resourceSearchForm.course_id = selectedCourseId.value
+  resourceSearchForm.software_engineering_chapter = null
+
   try {
     const response = await themeCategoriesApi.getList()
   // 响应可能被多次包装
@@ -1072,20 +1197,6 @@ async function fetchOptions() {
     ]
   }
 
-  // 课程章节（含描述）从课程管理获取
-  try {
-    const res = await api.getChaptersByCourse(1)
-    const chapters = res?.data || res || []
-    chapterOptionsRich.value = chapters.map((c) => ({
-      label: c.name,
-      value: c.id,
-      desc: c.description,
-    }))
-    chapterMap.value = Object.fromEntries(chapters.map((c) => [c.id, c]))
-  } catch (error) {
-    console.error('获取章节详情失败:', error)
-  }
-
   // 提示词模板列表
   try {
     const res = await templatesApi.getList({ page: 1, size: 50, is_active: true })
@@ -1113,7 +1224,8 @@ function applyPromptPreset() {
     if (chapter.description) parts.push(`章节简介：${chapter.description}`)
   }
   if (selectedTheme.value) {
-    parts.push(`思政主题：${selectedTheme.value}`)
+    const themeLabel = resolveThemeLabel(selectedTheme.value)
+    parts.push(`思政主题：${themeLabel || selectedTheme.value}`)
   }
   if (selectedCaseType.value) {
     const caseLabel = caseTypeOptions.find((c) => c.value === selectedCaseType.value)?.label || selectedCaseType.value
@@ -1123,8 +1235,24 @@ function applyPromptPreset() {
   chatInput.value?.setContent(parts.filter(Boolean).join('\n'))
 }
 
+function applyCaseChapter(chapterName) {
+  if (!chapterName) return
+  caseForm.software_engineering_chapter = chapterName
+  const matched = chapterOptionsRich.value.find((item) => item.label === chapterName)
+  if (matched) {
+    caseForm.chapter_id = matched.value
+    if (!caseForm.course_id && chapterMap.value[matched.value]) {
+      caseForm.course_id = chapterMap.value[matched.value].course_id
+    }
+  }
+}
+
 function openResourceSelector() {
   resourceSelectorVisible.value = true
+  const chapter = chapterMap.value[selectedChapterId.value]
+  resourceSearchForm.software_engineering_chapter = chapter?.name || null
+  resourceSearchForm.course_id = selectedCourseId.value
+  resourceSearchForm.chapter_id = selectedChapterId.value
   if (resourceTypeOptions.value.length === 0) {
     fetchResourceTypes()
   }
@@ -1188,9 +1316,18 @@ async function fetchResourceList() {
       page: resourcePagination.page,
       page_size: resourcePagination.pageSize,
     }
-    const res = await resourcesApi.getList(params)
-    const data = res?.data || res || {}
-    resourceList.value = data.items || []
+    let res = await resourcesApi.getList(params)
+    let data = res?.data || res || {}
+    let items = data.items || []
+    if (items.length === 0 && (params.course_id || params.chapter_id)) {
+      const fallbackParams = { ...params }
+      delete fallbackParams.course_id
+      delete fallbackParams.chapter_id
+      res = await resourcesApi.getList(fallbackParams)
+      data = res?.data || res || {}
+      items = data.items || []
+    }
+    resourceList.value = items
     resourcePagination.itemCount = data.total || 0
     selectedResourceIds.value = Array.from(selectedResourceMap.keys())
   } catch (error) {
@@ -1207,10 +1344,13 @@ function handleResourcePageSizeChange(pageSize) {
 }
 
 function resetResourceSearch() {
+  const chapter = chapterMap.value[selectedChapterId.value]
   Object.assign(resourceSearchForm, {
     keyword: '',
     resource_type: null,
-    software_engineering_chapter: null,
+    software_engineering_chapter: chapter?.name || null,
+    course_id: selectedCourseId.value,
+    chapter_id: selectedChapterId.value,
     theme_category_id: null,
   })
   resourcePagination.page = 1
@@ -1315,12 +1455,48 @@ async function applySelectedResources() {
   }
 }
 
+async function maybeAutoAttachResources() {
+  if (!autoAttachResources.value) return
+  if (selectedResources.value.length > 0 || resourceContextText.value) return
+  try {
+    let res = await resourcesApi.getRecommended({
+      course_id: selectedCourseId.value,
+      chapter_id: selectedChapterId.value,
+      theme_category_id: selectedTheme.value,
+      limit: 3,
+    })
+    let items = res?.data || res || []
+    if (!Array.isArray(items) || items.length === 0) {
+      const fallbackRes = await resourcesApi.getList({
+        software_engineering_chapter: chapterMap.value[selectedChapterId.value]?.name || null,
+        theme_category_id: selectedTheme.value,
+        page: 1,
+        page_size: 3,
+      })
+      const fallbackData = fallbackRes?.data || fallbackRes || {}
+      items = fallbackData.items || []
+    }
+    if (!Array.isArray(items) || items.length === 0) return
+    items.forEach((item) => {
+      if (item && item.id) selectedResourceMap.set(item.id, item)
+    })
+    selectedResourceIds.value = Array.from(selectedResourceMap.keys())
+    await applySelectedResources()
+  } catch (error) {
+    // ignore auto-attach errors
+  }
+}
+
 // 组件挂载时初始化
-onMounted(() => {
+onMounted(async () => {
   // 模拟加载统计数据
   todayGenerated.value = 3
   totalCases.value = 156
   usageTime.value = 45
+
+  if (!userStore.avatar) {
+    await userStore.getUserInfo()
+  }
 
   // 获取选项数据
   fetchOptions()
@@ -1385,6 +1561,16 @@ watch(
   },
   { deep: true }
 )
+
+watch(selectedCourseId, (value) => {
+  resourceSearchForm.course_id = value
+})
+
+watch(selectedChapterId, (value) => {
+  resourceSearchForm.chapter_id = value
+  const chapter = chapterMap.value[value]
+  resourceSearchForm.software_engineering_chapter = chapter?.name || null
+})
 </script>
 
 <style scoped>
@@ -1486,6 +1672,22 @@ watch(
 .resource-attachments__label {
   font-size: 12px;
   color: var(--n-text-color-depth-3);
+}
+
+.resource-search-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.resource-search-bar :deep(.n-input),
+.resource-search-bar :deep(.n-select) {
+  min-width: 160px;
+  width: 180px;
+}
+
+.resource-search-bar :deep(.n-button) {
+  flex: 0 0 auto;
 }
 
 .sidebar {
@@ -1671,6 +1873,64 @@ watch(
 .history-time {
   font-size: 11px;
   color: var(--n-text-color-depth-3);
+}
+
+.history-modal-empty {
+  padding: 16px 0;
+}
+
+.history-modal-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 60vh;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.history-modal-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--n-border-color);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.history-modal-item:hover {
+  background: var(--n-color-hover);
+  border-color: rgba(24, 160, 88, 0.2);
+}
+
+.history-modal-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--n-text-color);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  width: 100%;
+}
+
+.history-modal-preview {
+  font-size: 12px;
+  color: var(--n-text-color-depth-3);
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  width: 100%;
+}
+
+.history-modal-time {
+  font-size: 12px;
+  color: var(--n-text-color-depth-3);
+  width: 100%;
 }
 
 /* 主题适配 */

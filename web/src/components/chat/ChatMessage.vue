@@ -3,11 +3,11 @@
     <div class="message-avatar">
       <n-avatar
         :size="32"
-      >
         round
+        :src="message.role === 'user' ? (message.avatar || userAvatar) : undefined"
         :style="message.role === 'user' ? '' : 'background: linear-gradient(135deg, #4c79ff, #6ed0ff); color: #fff;'"
       >
-        <template v-if="message.role === 'user'">
+        <template v-if="message.role === 'user' && !(message.avatar || userAvatar)">
           <n-icon size="18" color="#4c79ff">
             <svg viewBox="0 0 24 24">
               <path
@@ -17,7 +17,7 @@
             </svg>
           </n-icon>
         </template>
-        <template v-else>
+        <template v-else-if="message.role !== 'user'">
           <n-icon size="18" color="#fff">
             <svg viewBox="0 0 24 24">
               <path
@@ -87,6 +87,7 @@ import { NAvatar, NIcon, NSpace, NTag, NButton } from 'naive-ui'
 import { Icon } from '@iconify/vue'
 import MarkdownIt from 'markdown-it'
 import markdownItKatex from 'markdown-it-katex'
+import { useUserStore } from '@/store'
 
 const props = defineProps({
   message: {
@@ -96,6 +97,8 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['copy-message', 'regenerate', 'save-case'])
+const userStore = useUserStore()
+const userAvatar = computed(() => userStore.avatar || '')
 
 const messageClass = computed(() => ({
   'user-message': props.message.role === 'user',

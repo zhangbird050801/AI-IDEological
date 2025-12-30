@@ -6,6 +6,7 @@ from app.schemas.ideological import (
     AIGCGenerationRequest,
     AIGCGenerationResponse,
     GenerationHistoryCreate,
+    GenerationHistoryCreateRequest,
     GenerationHistoryUpdate,
     GenerationHistoryInDB,
 )
@@ -93,6 +94,8 @@ class EnhancedAIGCService:
                 prompt_template_id=request.template_id,
                 generation_type=request.generation_type,
                 software_engineering_chapter=request.software_engineering_chapter,
+                course_id=request.course_id,
+                chapter_id=request.chapter_id,
                 theme_category_id=request.theme_category_id,
                 token_count=int(token_count),
                 generation_time=generation_time,
@@ -186,6 +189,8 @@ class EnhancedAIGCService:
                         prompt_template_id=request.template_id,
                         generation_type=request.generation_type,
                         software_engineering_chapter=request.software_engineering_chapter,
+                        course_id=request.course_id,
+                        chapter_id=request.chapter_id,
                         theme_category_id=request.theme_category_id,
                         token_count=int(token_count),
                         generation_time=generation_time,
@@ -317,6 +322,17 @@ async def get_generation_history(
         "pages": (total + page_size - 1) // page_size
     }
 
+
+@router.post("/history", summary="创建生成历史")
+async def create_generation_history(
+    history_in: GenerationHistoryCreateRequest,
+    current_user: User = Depends(AuthControl.is_authed)
+):
+    history_data = history_in.dict()
+    history_data["user_id"] = current_user.id
+    history = await GenerationHistoryModel.create(**history_data)
+    return GenerationHistoryInDB.from_orm(history)
+
 @router.post("/history/{history_id}/rate", summary="评价生成内容")
 async def rate_generation_history(
     history_id: int,
@@ -363,6 +379,8 @@ async def save_as_case(
         "theme_category_id",
         history.theme_category_id
     )
+    case_data["course_id"] = case_data.get("course_id", history.course_id)
+    case_data["chapter_id"] = case_data.get("chapter_id", history.chapter_id)
 
     case_in = IdeologicalCaseCreate(**case_data)
     case = await IdeologicalCaseModel.create(

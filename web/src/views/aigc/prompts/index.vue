@@ -27,7 +27,7 @@
                 <template #icon>
                   <n-icon><Icon icon="mdi:star" /></n-icon>
                 </template>
-                系统模板
+                {{ isSystemView ? '全部模板' : '系统模板' }}
               </n-button>
             </n-space>
           </div>
@@ -261,10 +261,10 @@
     <n-modal
       v-model:show="previewModalVisible"
       preset="dialog"
-      style="width: 800px"
+      style="width: 960px; max-width: 92vw"
       title="模板预览"
     >
-      <div v-if="previewTemplateData">
+      <div v-if="previewTemplateData" class="preview-modal-body">
         <n-descriptions :column="1" bordered>
           <n-descriptions-item label="模板名称">
             {{ previewTemplateData.name }}
@@ -315,6 +315,14 @@ export default {
 }
 </script>
 
+<style scoped>
+.preview-modal-body {
+  max-height: 70vh;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+</style>
+
 <script setup>
 import { ref, reactive, onMounted, computed, watch, h } from 'vue'
 import { useRouter } from 'vue-router'
@@ -353,6 +361,7 @@ import * as courseApi from '@/api/courses'
 // 响应式数据
 const message = useMessage()
 const dialog = useDialog()
+const router = useRouter()
 
 const loading = ref(false)
 const previewModalVisible = ref(false)
@@ -377,6 +386,7 @@ const searchForm = reactive({
 
 // 模板列表
 const templatesList = ref([])
+const isSystemView = ref(false)
 const pagination = reactive({
   page: 1,
   pageSize: 12,
@@ -536,6 +546,7 @@ const fetchStatistics = async () => {
 }
 
 const handleSearch = () => {
+  isSystemView.value = false
   pagination.page = 1
   fetchTemplates()
 }
@@ -572,10 +583,24 @@ const viewTemplateDetail = (template) => {
   previewModalVisible.value = true
 }
 
-const useTemplate = (template) => {
+const useTemplate = async (template) => {
   if (!template) return
+  try {
+    const response = await templatesApi.use(template.id)
+    const updated = response?.data || response
+    if (updated && typeof updated.usage_count === 'number') {
+      template.usage_count = updated.usage_count
+      const index = templatesList.value.findIndex((item) => item.id === template.id)
+      if (index >= 0) templatesList.value[index].usage_count = updated.usage_count
+      if (previewTemplateData.value && previewTemplateData.value.id === template.id) {
+        previewTemplateData.value.usage_count = updated.usage_count
+      }
+    }
+  } catch (error) {
+    message.error('更新使用次数失败')
+  }
 
-  // 跳转到聊天页面并使用该模板
+  // 跳转到提示词助手并使用该模板
   message.info(`使用模板: ${template.name}`)
 
   // 将模板信息保存到localStorage
@@ -585,11 +610,12 @@ const useTemplate = (template) => {
     content: template.template_content,
     variables: template.variables
   }))
+  localStorage.setItem('from_template_page', 'true')
 
-  // 跳转到聊天页面
-  const router = useRouter()
+  // 跳转到AIGC对话
   router.push('/aigc/chat')
 }
+
 
 const generateWithAssistant = () => {
   // 标记是从模板页面跳转到助手
@@ -724,10 +750,18 @@ const rateTemplate = (template) => {
 }
 
 const showSystemTemplates = async () => {
+  if (isSystemView.value) {
+    isSystemView.value = false
+    pagination.page = 1
+    await fetchTemplates()
+    message.success('已切换到全部模板')
+    return
+  }
   try {
     const response = await request.get('/ideological/templates/system/list')
     templatesList.value = response.data || []
     pagination.itemCount = (response.data || []).length
+    isSystemView.value = true
     message.success('已切换到系统模板视图')
   } catch (error) {
     message.error('获取系统模板失败')

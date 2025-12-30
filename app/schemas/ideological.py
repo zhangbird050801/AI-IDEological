@@ -6,7 +6,9 @@ from datetime import datetime
 class IdeologicalCaseBase(BaseModel):
     title: str = Field(..., description="案例标题")
     content: str = Field(..., description="案例内容")
-    software_engineering_chapter: str = Field(..., description="软件工程章节")
+    software_engineering_chapter: Optional[str] = Field(None, description="软件工程章节")
+    course_id: Optional[int] = Field(None, description="课程ID")
+    chapter_id: Optional[int] = Field(None, description="章节ID")
     theme_category_id: Optional[int] = Field(None, description="思政主题分类ID")
     case_type: str = Field(..., description="案例类型")
     tags: List[str] = Field(default=[], description="标签列表")
@@ -25,6 +27,8 @@ class IdeologicalCaseUpdate(BaseModel):
     title: Optional[str] = Field(None, description="案例标题")
     content: Optional[str] = Field(None, description="案例内容")
     software_engineering_chapter: Optional[str] = Field(None, description="软件工程章节")
+    course_id: Optional[int] = Field(None, description="课程ID")
+    chapter_id: Optional[int] = Field(None, description="章节ID")
     theme_category_id: Optional[int] = Field(None, description="思政主题分类ID")
     case_type: Optional[str] = Field(None, description="案例类型")
     tags: Optional[List[str]] = Field(None, description="标签列表")
@@ -119,6 +123,8 @@ class TeachingResourceBase(BaseModel):
     file_format: Optional[str] = Field(None, description="文件格式")
     tags: List[str] = Field(default=[], description="标签列表")
     software_engineering_chapter: Optional[str] = Field(None, description="适用章节")
+    course_id: Optional[int] = Field(None, description="课程ID")
+    chapter_id: Optional[int] = Field(None, description="章节ID")
     theme_category_id: Optional[int] = Field(None, description="思政主题分类ID")
     is_public: bool = Field(default=True, description="是否公开")
 
@@ -140,6 +146,8 @@ class TeachingResourceUpdate(BaseModel):
     file_format: Optional[str] = Field(None, description="文件格式")
     tags: Optional[List[str]] = Field(None, description="标签列表")
     software_engineering_chapter: Optional[str] = Field(None, description="适用章节")
+    course_id: Optional[int] = Field(None, description="课程ID")
+    chapter_id: Optional[int] = Field(None, description="章节ID")
     theme_category_id: Optional[int] = Field(None, description="思政主题分类ID")
     is_public: Optional[bool] = Field(None, description="是否公开")
 
@@ -170,6 +178,8 @@ class GenerationHistoryBase(BaseModel):
     generated_content: str = Field(..., description="生成内容")
     generation_type: str = Field(..., description="生成类型")
     software_engineering_chapter: Optional[str] = Field(None, description="软件工程章节")
+    course_id: Optional[int] = Field(None, description="课程ID")
+    chapter_id: Optional[int] = Field(None, description="章节ID")
     theme_category_id: Optional[int] = Field(None, description="思政主题分类ID")
 
 
@@ -178,6 +188,12 @@ class GenerationHistoryCreate(GenerationHistoryBase):
     token_count: Optional[int] = Field(None, description="Token消耗数量")
     generation_time: Optional[int] = Field(None, description="生成耗时(毫秒)")
     user_id: int = Field(..., description="用户ID")
+
+
+class GenerationHistoryCreateRequest(GenerationHistoryBase):
+    prompt_template_id: Optional[int] = Field(None, description="使用的提示词模板ID")
+    token_count: Optional[int] = Field(None, description="Token消耗数量")
+    generation_time: Optional[int] = Field(None, description="生成耗时(毫秒)")
 
 
 class GenerationHistoryUpdate(BaseModel):
@@ -252,6 +268,8 @@ class UserRating(UserRatingBase):
 class CaseSearchRequest(BaseModel):
     keyword: Optional[str] = Field(None, description="关键词")
     software_engineering_chapter: Optional[str] = Field(None, description="软件工程章节")
+    course_id: Optional[int] = Field(None, description="课程ID")
+    chapter_id: Optional[int] = Field(None, description="章节ID")
     theme_category_id: Optional[int] = Field(None, description="思政主题分类ID")
     case_type: Optional[str] = Field(None, description="案例类型")
     tags: Optional[List[str]] = Field(None, description="标签")
@@ -276,6 +294,8 @@ class ResourceSearchRequest(BaseModel):
     keyword: Optional[str] = Field(None, description="关键词")
     resource_type: Optional[str] = Field(None, description="资源类型")
     software_engineering_chapter: Optional[str] = Field(None, description="适用章节")
+    course_id: Optional[int] = Field(None, description="课程ID")
+    chapter_id: Optional[int] = Field(None, description="章节ID")
     theme_category_id: Optional[int] = Field(None, description="思政主题分类ID")
     tags: Optional[List[str]] = Field(None, description="标签")
     is_public: Optional[bool] = Field(None, description="是否公开")
@@ -289,6 +309,8 @@ class AIGCGenerationRequest(BaseModel):
     template_variables: Optional[dict] = Field(None, description="模板变量")
     generation_type: str = Field(default="case", description="生成类型")
     software_engineering_chapter: Optional[str] = Field(None, description="软件工程章节")
+    course_id: Optional[int] = Field(None, description="课程ID")
+    chapter_id: Optional[int] = Field(None, description="章节ID")
     theme_category_id: Optional[int] = Field(None, description="思政主题分类ID")
     use_stream: bool = Field(default=True, description="是否使用流式生成")
 

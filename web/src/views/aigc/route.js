@@ -80,5 +80,15 @@ export default {
         order: 7,
       },
     },
+    {
+      name: 'AIGCHistory',
+      path: 'history',
+      component: () => import('@/views/aigc/history/index.vue'),
+      meta: {
+        title: '生成历史',
+        icon: 'mdi:history',
+        order: 8,
+      },
+    },
   ],
 }

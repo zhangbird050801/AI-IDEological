@@ -1265,7 +1265,7 @@ watch(
 }
 
 .chat-container {
-  height: calc(100vh - 200px);
+  height: 100%;
   display: flex;
   flex-direction: column;
   position: relative;
@@ -1278,7 +1278,7 @@ watch(
   display: flex;
   flex-direction: column;
   height: 100%;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .chat-header {
@@ -1500,6 +1500,8 @@ html[data-theme="dark"] .prompt-code-display {
 }
 
 .input-container {
+  position: sticky;
+  bottom: 0;
   padding: 12px;
   border-top: 1px solid rgba(0, 0, 0, 0.06);
   background: rgba(255, 255, 255, 0.95);

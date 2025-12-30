@@ -13,10 +13,12 @@ from app.schemas.ideological import (
     BatchOperationResponse,
 )
 from app.models.ideological import IdeologicalCase as IdeologicalCaseModel, UserFavorites
+from app.models.chapter import Chapter
 from app.models.admin import User
 from app.core.dependency import AuthControl
 from app.core.crud import CRUDBase
 from app.services.theme_service import ThemeService
+from app.services.recommendation_service import RecommendationService
 
 router = APIRouter()
 
@@ -43,6 +45,32 @@ async def get_favorite_stats(case_ids: List[int], user_id: int) -> (Dict[int, in
     user_favs = {f["target_id"] for f in favorites if f["user_id"] == user_id}
     return counts, user_favs
 
+
+async def _hydrate_course_chapter(obj_data: dict) -> dict:
+    chapter_id = obj_data.get("chapter_id")
+    course_id = obj_data.get("course_id")
+    chapter_name = obj_data.get("software_engineering_chapter")
+
+    if chapter_id:
+        chapter = await Chapter.get_or_none(id=chapter_id)
+        if chapter:
+            obj_data["software_engineering_chapter"] = chapter.name
+            if not course_id:
+                obj_data["course_id"] = chapter.course_id
+        return obj_data
+
+    if chapter_name:
+        query = Chapter.filter(name=chapter_name)
+        if course_id:
+            query = query.filter(course_id=course_id)
+        chapter = await query.first()
+        if chapter:
+            obj_data["chapter_id"] = chapter.id
+            if not course_id:
+                obj_data["course_id"] = chapter.course_id
+
+    return obj_data
+
 class CaseService(CRUDBase[IdeologicalCaseModel, IdeologicalCaseCreate, IdeologicalCaseUpdate]):
     def __init__(self):
         super().__init__(IdeologicalCaseModel)
@@ -53,6 +81,7 @@ class CaseService(CRUDBase[IdeologicalCaseModel, IdeologicalCaseCreate, Ideologi
         
         # 处理主题转换：如果只有名称没有ID，尝试转换
         obj_data = await ThemeService.process_form_data(obj_data)
+        obj_data = await _hydrate_course_chapter(obj_data)
         
         case = await self.create(obj_data)
         return case
@@ -77,8 +106,18 @@ class CaseService(CRUDBase[IdeologicalCaseModel, IdeologicalCaseCreate, Ideologi
             )
 
         # 其他筛选条件
-        if search_request.software_engineering_chapter:
+        if search_request.chapter_id and search_request.software_engineering_chapter:
+            query = query.filter(
+                Q(chapter_id=search_request.chapter_id) |
+                Q(software_engineering_chapter=search_request.software_engineering_chapter)
+            )
+        elif search_request.chapter_id:
+            query = query.filter(chapter_id=search_request.chapter_id)
+        elif search_request.software_engineering_chapter:
             query = query.filter(software_engineering_chapter=search_request.software_engineering_chapter)
+
+        if search_request.course_id:
+            query = query.filter(course_id=search_request.course_id)
 
         if search_request.theme_category_id:
             query = query.filter(theme_category_id=search_request.theme_category_id)
@@ -135,12 +174,7 @@ class CaseService(CRUDBase[IdeologicalCaseModel, IdeologicalCaseCreate, Ideologi
         ).order_by("-usage_count", "-rating").limit(limit)
 
     async def get_recommended_cases(self, user_id: int, limit: int = 10):
-        # 简单推荐算法：根据用户历史案例类型和主题推荐
-        # 这里可以根据实际需求优化推荐算法
-        return await IdeologicalCaseModel.filter(
-            is_public=True,
-            status="published"
-        ).order_by("-rating", "-usage_count").limit(limit)
+        return await RecommendationService.get_case_recommendations(user_id=user_id, limit=limit)
 
 case_service = CaseService()
 
@@ -148,6 +182,8 @@ case_service = CaseService()
 async def get_cases(
     keyword: str = Query(None, description="关键词搜索"),
     software_engineering_chapter: str = Query(None, description="软件工程章节"),
+    course_id: int = Query(None, description="课程ID"),
+    chapter_id: int = Query(None, description="章节ID"),
     theme_category_id: int = Query(None, description="思政主题分类ID"),
     case_type: str = Query(None, description="案例类型"),
     difficulty_level: int = Query(None, ge=1, le=5, description="难度等级"),
@@ -158,6 +194,8 @@ async def get_cases(
     search_request = CaseSearchRequest(
         keyword=keyword,
         software_engineering_chapter=software_engineering_chapter,
+        course_id=course_id,
+        chapter_id=chapter_id,
         theme_category_id=theme_category_id,
         case_type=case_type,
         difficulty_level=difficulty_level,
@@ -239,6 +277,7 @@ async def update_case(
     
     # 处理主题转换
     update_data = await ThemeService.process_form_data(update_data)
+    update_data = await _hydrate_course_chapter(update_data)
     
     await case.update_from_dict(update_data)
     await case.save()
@@ -373,9 +412,16 @@ async def get_hot_cases(
 @router.get("/recommended/list", summary="获取推荐案例")
 async def get_recommended_cases(
     limit: int = Query(10, ge=1, le=50, description="获取数量"),
+    theme_category_id: int = Query(None, description="思政主题分类ID"),
+    difficulty_level: int = Query(None, ge=1, le=5, description="难度等级"),
     current_user: User = Depends(AuthControl.is_authed)
 ):
-    cases = await case_service.get_recommended_cases(current_user.id, limit)
+    cases = await RecommendationService.get_case_recommendations(
+        user_id=current_user.id,
+        limit=limit,
+        theme_category_id=theme_category_id,
+        difficulty_level=difficulty_level
+    )
     return [IdeologicalCase.from_orm(case) for case in cases]
 
 @router.post("/{case_id}/rate", summary="评分案例")
@@ -391,22 +437,14 @@ async def rate_case(
 
 @router.get("/chapters/list", summary="获取软件工程章节列表")
 async def get_chapters(
+    course_id: int = Query(None, description="课程ID"),
     current_user: User = Depends(AuthControl.is_authed)
 ):
-    # 返回软件工程常见章节
-    chapters = [
-        "软件工程概述",
-        "软件过程模型",
-        "需求分析",
-        "系统设计",
-        "编码实现",
-        "软件测试",
-        "软件维护",
-        "项目管理",
-        "软件质量",
-        "软件工程前沿"
-    ]
-    return chapters
+    query = Chapter.filter(is_active=True)
+    if course_id:
+        query = query.filter(course_id=course_id)
+    chapters = await query.order_by("order").values_list("name", flat=True)
+    return list(chapters)
 
 @router.get("/themes/list", summary="获取思政主题列表")
 async def get_ideological_themes(
