@@ -12,10 +12,6 @@ import {
   NSwitch,
   NTag,
   NPopconfirm,
-  NLayout,
-  NLayoutSider,
-  NLayoutContent,
-  NTreeSelect,
 } from 'naive-ui'
 
 import CommonPage from '@/components/page/CommonPage.vue'
@@ -57,12 +53,10 @@ const {
 })
 
 const roleOption = ref([])
-const deptOption = ref([])
 
 onMounted(() => {
   $table.value?.handleSearch()
   api.getRoleList({ page: 1, page_size: 9999 }).then((res) => (roleOption.value = res.data))
-  api.getDepts().then((res) => (deptOption.value = res.data))
 })
 
 const columns = [
@@ -94,13 +88,6 @@ const columns = [
         )
       return h('span', group)
     },
-  },
-  {
-    title: '部门',
-    key: 'dept.name',
-    align: 'center',
-    width: 40,
-    ellipsis: { tooltip: true },
   },
   {
     title: '超级用户',
@@ -166,7 +153,6 @@ const columns = [
               style: 'margin-right: 8px;',
               onClick: () => {
                 handleEdit(row)
-                modalForm.value.dept_id = row.dept?.id
                 modalForm.value.role_ids = row.roles.map((e) => (e = e.id))
                 delete modalForm.value.dept
               },
@@ -259,7 +245,6 @@ async function handleUpdateDisable(row) {
     role_ids.push(e.id)
   })
   row.role_ids = role_ids
-  row.dept_id = row.dept?.id
   try {
     await api.updateUser(row)
     $message?.success(row.is_active ? '已取消禁用该用户' : '已禁用该用户')
@@ -274,21 +259,6 @@ async function handleUpdateDisable(row) {
 
 let lastClickedNodeId = null
 
-const nodeProps = ({ option }) => {
-  return {
-    onClick() {
-      if (lastClickedNodeId === option.id) {
-        $table.value?.handleSearch()
-        lastClickedNodeId = null
-      } else {
-        api.getUserList({ dept_id: option.id }).then((res) => {
-          $table.value.tableData = res.data
-          lastClickedNodeId = option.id
-        })
-      }
-    },
-  }
-}
 
 const validateAddUser = {
   username: [
@@ -352,28 +322,7 @@ const validateAddUser = {
 </script>
 
 <template>
-  <NLayout has-sider wh-full>
-    <NLayoutSider
-      bordered
-      content-style="padding: 24px;"
-      :collapsed-width="0"
-      :width="240"
-      show-trigger="arrow-circle"
-    >
-      <h1>部门列表</h1>
-      <br />
-      <NTree
-        block-line
-        :data="deptOption"
-        key-field="id"
-        label-field="name"
-        default-expand-all
-        :node-props="nodeProps"
-      >
-      </NTree>
-    </NLayoutSider>
-    <NLayoutContent>
-      <CommonPage show-footer title="用户列表">
+  <CommonPage show-footer title="用户列表">
         <template #action>
           <NButton v-permission="'post/api/v1/user/create'" type="primary" @click="handleAdd">
             <TheIcon icon="material-symbols:add" :size="18" class="mr-5" />新建用户
@@ -475,21 +424,8 @@ const validateAddUser = {
                 :default-value="true"
               />
             </NFormItem>
-            <NFormItem label="部门" path="dept_id">
-              <NTreeSelect
-                v-model:value="modalForm.dept_id"
-                :options="deptOption"
-                key-field="id"
-                label-field="name"
-                placeholder="请选择部门"
-                clearable
-                default-expand-all
-              ></NTreeSelect>
-            </NFormItem>
           </NForm>
         </CrudModal>
-      </CommonPage>
-    </NLayoutContent>
-  </NLayout>
+  </CommonPage>
   <!-- 业务页面 -->
 </template>
