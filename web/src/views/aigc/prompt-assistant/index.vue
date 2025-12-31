@@ -87,7 +87,7 @@
                   :class="{ 'user-message': message.type === 'user', 'assistant-message': message.type === 'assistant' }"
                 >
                   <div class="message-avatar">
-                    <n-avatar round :size="32" v-if="message.type === 'user'">
+                    <n-avatar round :size="32" v-if="message.type === 'user'" :src="userStore.avatar">
                       <n-icon><Icon icon="mdi:account" /></n-icon>
                     </n-avatar>
                     <n-avatar round :size="32" v-else class="assistant-avatar">
@@ -445,6 +445,7 @@ import { request } from '@/utils/http'
 import { themeCategoriesApi } from '@/api/ideological'
 import * as courseApi from '@/api/courses'
 import { getToken } from '@/utils/auth/token'
+import { useUserStore } from '@/store'
 import MarkdownIt from 'markdown-it'
 
 // 初始化markdown渲染器
@@ -457,6 +458,7 @@ const md = new MarkdownIt({
 
 // 响应式数据
 const message = useMessage()
+const userStore = useUserStore()
 
 const isLoading = ref(false)
 const inputMessage = ref('')
@@ -1216,10 +1218,15 @@ const goBackToTemplates = () => {
 }
 
 // 初始化
-onMounted(() => {
+onMounted(async () => {
   // 确保开发环境有认证token
   if (import.meta.env.DEV && !localStorage.getItem('access_token')) {
     localStorage.setItem('access_token', 'dev')
+  }
+
+  // 获取用户信息（包括头像）
+  if (!userStore.avatar) {
+    await userStore.getUserInfo()
   }
 
   // 从localStorage恢复对话
@@ -1289,14 +1296,21 @@ watch(
   overflow: visible;
 }
 
+.chat-container :deep(.n-card-header) {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  padding: 12px 16px;
+}
+
 .chat-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 12px 14px;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
   flex-shrink: 0;
-  background: rgba(255, 255, 255, 0.8);
 }
 
 .assistant-info {

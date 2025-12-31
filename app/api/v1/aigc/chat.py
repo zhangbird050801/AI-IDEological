@@ -13,6 +13,7 @@ class Message(BaseModel):
 
 class ChatRequest(BaseModel):
 	messages: List[Message]
+	enable_web_search: Optional[bool] = False
 
 class ChatResponse(BaseModel):
 	reply: str
@@ -21,7 +22,7 @@ class ChatResponse(BaseModel):
 async def chat_endpoint(req: ChatRequest):
 	client = AIGCClient()
 	try:
-		data = await client.chat([m.dict() for m in req.messages])
+		data = await client.chat([m.dict() for m in req.messages], enable_web_search=req.enable_web_search)
 		reply = data["choices"][0]["message"]["content"]
 		return ChatResponse(reply=reply)
 	except Exception as e:
@@ -66,15 +67,20 @@ async def diag():
 
 @router.post('/chat/stream')
 async def chat_stream_endpoint(req: ChatRequest):
+	import logging
+	logger = logging.getLogger(__name__)
+	logger.info(f"收到流式聊天请求，enable_web_search={req.enable_web_search}")
+	
 	client = AIGCClient()
 
 	async def event_generator():
 		try:
-			async for chunk in client.chat_stream([m.dict() for m in req.messages]):
+			async for chunk in client.chat_stream([m.dict() for m in req.messages], enable_web_search=req.enable_web_search):
 				# Each chunk is expected to be JSON-ish or text; yield as SSE data
 				yield f"data: {chunk}\n\n"
 		except Exception as e:
 			# On error, send an SSE error event then close
-			yield f"event: error\ndata: {str(e)}\n\n"
+			msg = str(e) or e.__class__.__name__
+			yield f"event: error\ndata: {msg}\n\n"
 
 	return StreamingResponse(event_generator(), media_type='text/event-stream')

@@ -6,6 +6,7 @@ from tortoise.expressions import F
 import os
 import uuid
 import aiofiles
+import httpx
 from pathlib import Path
 import json
 import re
@@ -70,18 +71,16 @@ class ResourceService(CRUDBase[TeachingResourceModel, TeachingResourceCreate, Te
         if search_request.resource_type:
             query = query.filter(resource_type=search_request.resource_type)
 
-        if search_request.chapter_id and search_request.software_engineering_chapter:
-            query = query.filter(
-                Q(chapter_id=search_request.chapter_id) |
-                Q(software_engineering_chapter__icontains=search_request.software_engineering_chapter)
-            )
-        elif search_request.chapter_id:
-            query = query.filter(chapter_id=search_request.chapter_id)
-        elif search_request.software_engineering_chapter:
-            query = query.filter(software_engineering_chapter__icontains=search_request.software_engineering_chapter)
-
+        # 课程和章节筛选
+        # 逻辑：course_id 和 chapter_id 应该是 AND 关系
         if search_request.course_id:
             query = query.filter(course_id=search_request.course_id)
+        
+        if search_request.chapter_id:
+            query = query.filter(chapter_id=search_request.chapter_id)
+        
+        if search_request.software_engineering_chapter:
+            query = query.filter(software_engineering_chapter__icontains=search_request.software_engineering_chapter)
 
         if search_request.theme_category_id:
             query = query.filter(theme_category_id=search_request.theme_category_id)
@@ -297,6 +296,26 @@ def _extract_text_sync(file_path: Path, file_format: str, resource_type: str) ->
         doc = docx.Document(str(file_path))
         return '\n'.join(p.text for p in doc.paragraphs if p.text)
 
+    if suffix in ['pptx', 'ppt']:
+        if suffix == 'ppt':
+            raise ValueError('暂不支持 .ppt 格式，请转换为 .pptx')
+        try:
+            from pptx import Presentation
+        except Exception as exc:
+            raise ValueError("缺少依赖 python-pptx，请安装: pip install python-pptx") from exc
+        
+        text_parts = []
+        prs = Presentation(str(file_path))
+        for slide_num, slide in enumerate(prs.slides, 1):
+            slide_texts = []
+            # 提取幻灯片中的所有文本
+            for shape in slide.shapes:
+                if hasattr(shape, "text") and shape.text:
+                    slide_texts.append(shape.text)
+            if slide_texts:
+                text_parts.append(f"--- 幻灯片 {slide_num} ---\n" + '\n'.join(slide_texts))
+        return '\n\n'.join(text_parts)
+
     if resource_type == 'image' or suffix in ['png', 'jpg', 'jpeg', 'bmp', 'gif', 'tiff']:
         try:
             from PIL import Image
@@ -315,12 +334,42 @@ def _extract_text_sync(file_path: Path, file_format: str, resource_type: str) ->
     raise ValueError('该资源类型不支持文本提取')
 
 async def extract_resource_text_content(resource: TeachingResourceModel, max_chars: int) -> dict:
+    # 如果资源有外部链接，使用联网功能提取
+    if resource.external_url:
+        provider = (getattr(settings, "AIGC_PROVIDER", None) or "deepseek").lower()
+        if provider in {"kimi", "moonshot"}:
+            try:
+                client = AIGCClient()
+                raw_text = await client.extract_url_content(resource.external_url, max_chars=max_chars)
+                normalized = _normalize_text(raw_text)
+                total_chars = len(normalized)
+                truncated = total_chars > max_chars
+                text = normalized[:max_chars] if truncated else normalized
+                
+                return {
+                    "resource_id": resource.id,
+                    "text": text,
+                    "total_chars": total_chars,
+                    "truncated": truncated,
+                    "source": "external_url"
+                }
+            except Exception as exc:
+                raise HTTPException(status_code=500, detail=f"外部链接内容提取失败: {exc}") from exc
+        else:
+            raise HTTPException(status_code=400, detail="外部链接内容提取仅支持 Kimi 提供商")
+    
+    # 如果没有文件路径，返回错误
     if not resource.file_path:
-        raise HTTPException(status_code=400, detail="该资源没有可读取的文件")
+        raise HTTPException(status_code=400, detail="该资源没有可读取的文件或外部链接")
 
     file_path = Path(resource.file_path)
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="资源文件不存在")
+
+    # 检查文件大小，如果太大给出警告
+    file_size = file_path.stat().st_size
+    if file_size > 50 * 1024 * 1024:  # 50MB
+        raise HTTPException(status_code=400, detail="文件过大（超过50MB），无法提取文本")
 
     provider = (getattr(settings, "AIGC_PROVIDER", None) or "deepseek").lower()
     if provider in {"kimi", "moonshot"}:
@@ -332,7 +381,24 @@ async def extract_resource_text_content(resource: TeachingResourceModel, max_cha
                 fallback_text = await _extract_docx_images_text(file_path, client)
                 if fallback_text:
                     raw_text = fallback_text
+        except httpx.TimeoutException:
+            raise HTTPException(status_code=504, detail="文件处理超时，请稍后重试或尝试较小的文件")
+        except httpx.HTTPStatusError as exc:
+            # 处理 HTTP 状态错误
+            status_code = exc.response.status_code
+            if status_code in [502, 503, 504]:
+                raise HTTPException(
+                    status_code=503, 
+                    detail=f"Kimi API 服务暂时不可用（{status_code}），请稍后重试。这是 Kimi 服务端的问题，已自动重试3次仍然失败。"
+                )
+            elif status_code == 429:
+                raise HTTPException(status_code=429, detail="Kimi API 请求频率超限，请稍后重试")
+            else:
+                raise HTTPException(status_code=500, detail=f"Kimi API 返回错误 {status_code}: {exc}")
         except Exception as exc:
+            error_msg = str(exc)
+            if "timeout" in error_msg.lower():
+                raise HTTPException(status_code=504, detail="文件处理超时，请稍后重试")
             raise HTTPException(status_code=500, detail=f"Kimi 文件解析失败: {exc}") from exc
     else:
         try:
@@ -357,6 +423,7 @@ async def extract_resource_text_content(resource: TeachingResourceModel, max_cha
         "text": text,
         "total_chars": total_chars,
         "truncated": truncated,
+        "source": "file"
     }
 
 resource_service = ResourceService()
@@ -400,7 +467,7 @@ async def get_resources(
 @router.get("/{resource_id}/extract-text", summary="提取教学资源文本")
 async def extract_resource_text(
     resource_id: int,
-    max_chars: int = Query(4000, ge=500, le=20000, description="最大返回字符数"),
+    max_chars: int = Query(8000, ge=100, le=100000, description="最大返回字符数（100-100000）"),
     current_user: User = Depends(AuthControl.is_authed)
 ):
     resource = await TeachingResourceModel.get_or_none(id=resource_id)
@@ -627,6 +694,28 @@ async def get_hot_resources(
 ):
     resources = await resource_service.get_hot_resources(limit)
     return [TeachingResource.from_orm(resource) for resource in resources]
+
+@router.get("/statistics/mine", summary="获取我的资源统计")
+async def get_my_resources_statistics(
+    current_user: User = Depends(AuthControl.is_authed)
+):
+    """获取当前用户的资源统计信息"""
+    total = await TeachingResourceModel.filter(uploader_id=current_user.id).count()
+    public = await TeachingResourceModel.filter(uploader_id=current_user.id, is_public=True).count()
+    private = await TeachingResourceModel.filter(uploader_id=current_user.id, is_public=False).count()
+    
+    # 按类型统计
+    resource_types = await TeachingResourceModel.filter(uploader_id=current_user.id).values_list("resource_type", flat=True)
+    type_counts = {}
+    for rt in resource_types:
+        type_counts[rt] = type_counts.get(rt, 0) + 1
+    
+    return {
+        "total": total,
+        "public": public,
+        "private": private,
+        "by_type": type_counts
+    }
 
 @router.get("/download/{file_uuid}", summary="下载文件")
 async def download_file(

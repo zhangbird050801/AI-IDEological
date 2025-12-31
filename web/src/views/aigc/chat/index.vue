@@ -137,9 +137,9 @@
                 size="small"
                 @update:value="applyPromptPreset"
               />
-              <n-switch v-model:value="autoAttachResources" size="small">
-                <template #checked>自动引用资源</template>
-                <template #unchecked>自动引用资源</template>
+              <n-switch v-model:value="enableWebSearch" size="small">
+                <template #checked>启用联网搜索</template>
+                <template #unchecked>启用联网搜索</template>
               </n-switch>
               <n-button size="small" block type="primary" @click="applyPromptPreset">
                 <template #icon>
@@ -439,6 +439,7 @@ const selectedTheme = ref(null)
 const selectedCaseType = ref(null)
 const extractingCaseFields = ref(false)
 const autoAttachResources = ref(true)
+const enableWebSearch = ref(false)
 
 // 教学资源选择
 const resourceSelectorVisible = ref(false)
@@ -567,9 +568,24 @@ async function handleSendMessage(data) {
   loadingBar.start()
 
   try {
-    await maybeAutoAttachResources()
+    // 已禁用自动引用资源功能
+    // await maybeAutoAttachResources()
+    
+    // 如果有附加的教学资源，在用户消息内容中添加资源信息提示
+    let userContentWithResources = data.content
+    if (selectedResources.value.length > 0) {
+      const resourceTitles = selectedResources.value.map(r => r.title).join('、')
+      userContentWithResources = `${data.content}\n\n[已附加教学资源: ${resourceTitles}]`
+      // 更新用户消息的显示内容
+      userMessage.content = userContentWithResources
+    }
+    const hasExternalResource = selectedResources.value.some((r) => r?.external_url)
+    const effectiveEnableWebSearch = enableWebSearch.value || hasExternalResource
+    
+    const formatGuide = '请使用标准 Markdown 输出（段落 + 有序/无序列表），段落之间空一行；允许少量小标题，用“**小标题：**”行内加粗即可，不要用多级 # 标题；禁止使用表格；避免整段加粗。'
     const msgArr = [
       { role: 'system', content: 'You are a helpful assistant.' },
+      { role: 'system', content: formatGuide },
       ...(resourceContextText.value ? [{ role: 'system', content: resourceContextText.value }] : []),
       ...messages.value.map((m) => ({ role: m.role, content: m.content })),
     ]
@@ -586,7 +602,7 @@ async function handleSendMessage(data) {
     messages.value.push(assistantMessage)
 
     // Try stream first
-    const iterator = chatStream(msgArr)
+    const iterator = chatStream(msgArr, { enableWebSearch: effectiveEnableWebSearch })
     try {
       for await (const item of iterator) {
         // item is { type: 'chunk'|'text', payload: ... }
@@ -669,7 +685,7 @@ async function handleSendMessage(data) {
       const idx = messages.value.findIndex((m) => m.id === assistantMessage.id)
       if (idx >= 0) messages.value.splice(idx, 1)
       // fallback to non-streaming API
-      const res = await chatAPI(msgArr)
+      const res = await chatAPI(msgArr, { enableWebSearch: effectiveEnableWebSearch })
       const finalReply = (res && (res.reply ?? res.data?.reply)) || ''
       const fallbackMessage = {
         id: Date.now() + 2,
@@ -1021,7 +1037,9 @@ async function confirmSaveCase() {
 function handleClearHistory() {
   messages.value = []
   currentSessionId.value = null
-  localStorage.removeItem('aigc-chat-current-messages')
+  const userId = userStore.id || userStore.userInfo?.id
+  const messagesKey = `aigc-chat-current-messages-${userId}`
+  localStorage.removeItem(messagesKey)
 }
 
 // 清空所有历史记录
@@ -1353,20 +1371,18 @@ async function fetchResourceList() {
       page: resourcePagination.page,
       page_size: resourcePagination.pageSize,
     }
-    let res = await resourcesApi.getList(params)
-    let data = res?.data || res || {}
-    let items = data.items || []
-    if (items.length === 0 && (params.course_id || params.chapter_id)) {
-      const fallbackParams = { ...params }
-      delete fallbackParams.course_id
-      delete fallbackParams.chapter_id
-      res = await resourcesApi.getList(fallbackParams)
-      data = res?.data || res || {}
-      items = data.items || []
-    }
+    const res = await resourcesApi.getList(params)
+    const data = res?.data || res || {}
+    const items = data.items || []
+    
     resourceList.value = items
     resourcePagination.itemCount = data.total || 0
     selectedResourceIds.value = Array.from(selectedResourceMap.keys())
+    
+    // 如果没有结果，给用户提示
+    if (items.length === 0 && (params.course_id || params.chapter_id)) {
+      message.info('当前筛选条件下没有找到资源，请尝试调整筛选条件')
+    }
   } catch (error) {
     message.error('获取教学资源失败')
   } finally {
@@ -1448,6 +1464,9 @@ function buildResourcePrompt(resources) {
     if (themeLabel) lines.push(`   思政主题：${themeLabel}`)
     const link = resolveResourceLink(item)
     if (link) lines.push(`   链接：${link}`)
+    if (item.external_url) {
+      lines.push('   说明：该资源为外部链接，请联网访问或搜索此链接获取正文内容，再结合摘要回答。')
+    }
     if (item.extractedText) {
       lines.push(`   内容摘要：${item.extractedText}`)
     }
@@ -1458,12 +1477,18 @@ function buildResourcePrompt(resources) {
 
 async function fetchResourceExtract(resource) {
   try {
+    // 文件提取可能需要较长时间，设置5分钟超时
     const res = await request.get(`/ideological/resources/${resource.id}/extract-text`, {
       params: { max_chars: 1500 },
+      timeout: 300000, // 5分钟
     })
     const data = res?.data || res || {}
     return data.text || ''
   } catch (error) {
+    console.error('资源文本提取失败:', error)
+    if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+      message.warning(`资源"${resource.title}"处理超时，已跳过`)
+    }
     return ''
   }
 }
@@ -1481,11 +1506,16 @@ async function applySelectedResources() {
       ...item,
       extractedText: extractedList[index],
     }))
+    const hasExternal = enriched.some((item) => item?.external_url)
     const missingCount = enriched.filter((item) => !item.extractedText).length
     if (missingCount > 0) {
       message.warning(`有 ${missingCount} 个资源未能读取内容，已仅附加基础信息`)
     }
     resourceContextText.value = buildResourcePrompt(enriched)
+    if (hasExternal) {
+      // 外部链接需要联网搜索，自动开启
+      enableWebSearch.value = true
+    }
     resourceSelectorVisible.value = false
   } finally {
     resourceApplying.value = false
@@ -1538,8 +1568,10 @@ onMounted(async () => {
   // 获取选项数据
   fetchOptions()
   
-  // 从localStorage加载历史记录
-  const savedHistory = localStorage.getItem('aigc-chat-history')
+  // 从localStorage加载历史记录（按用户ID区分）
+  const userId = userStore.id || userStore.userInfo?.id
+  const historyKey = `aigc-chat-history-${userId}`
+  const savedHistory = localStorage.getItem(historyKey)
   if (savedHistory) {
     try {
       chatHistory.value = JSON.parse(savedHistory)
@@ -1548,8 +1580,9 @@ onMounted(async () => {
     }
   }
 
-  // 从localStorage加载当前对话
-  const savedMessages = localStorage.getItem('aigc-chat-current-messages')
+  // 从localStorage加载当前对话（按用户ID区分）
+  const messagesKey = `aigc-chat-current-messages-${userId}`
+  const savedMessages = localStorage.getItem(messagesKey)
   if (savedMessages) {
     try {
       messages.value = JSON.parse(savedMessages)
@@ -1579,21 +1612,25 @@ onMounted(async () => {
   }
 })
 
-// 监听历史记录变化，自动保存
+// 监听历史记录变化，自动保存（按用户ID区分）
 watch(
   chatHistory,
   (newHistory) => {
-    localStorage.setItem('aigc-chat-history', JSON.stringify(newHistory))
+    const userId = userStore.id || userStore.userInfo?.id
+    const historyKey = `aigc-chat-history-${userId}`
+    localStorage.setItem(historyKey, JSON.stringify(newHistory))
   },
   { deep: true }
 )
 
-// 监听当前消息变化，自动保存
+// 监听当前消息变化，自动保存（按用户ID区分）
 watch(
   messages,
   (newMessages) => {
     if (newMessages.length > 0) {
-      localStorage.setItem('aigc-chat-current-messages', JSON.stringify(newMessages))
+      const userId = userStore.id || userStore.userInfo?.id
+      const messagesKey = `aigc-chat-current-messages-${userId}`
+      localStorage.setItem(messagesKey, JSON.stringify(newMessages))
     }
   },
   { deep: true }

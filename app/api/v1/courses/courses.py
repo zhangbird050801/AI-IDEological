@@ -8,7 +8,7 @@ from app.controllers.course_controller import CourseController
 from app.core.dependency import DependAuth
 from app.models import User
 
-router = APIRouter(tags=["课程管理"])
+router = APIRouter(tags=["基础模块"])
 
 
 @router.get("/", response_model=dict, summary="获取课程列表")

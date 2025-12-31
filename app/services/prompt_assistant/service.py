@@ -119,28 +119,14 @@ class PromptAssistantService:
         # 流式生成回复
         full_response = ""
         try:
-            async for chunk in self.deepseek_client.chat_stream(messages):
-                # chunk 是 JSON 字符串，需要解析
-                try:
-                    import json
-                    chunk_data = json.loads(chunk)
-                    if 'choices' in chunk_data and len(chunk_data['choices']) > 0:
-                        delta = chunk_data['choices'][0].get('delta', {})
-                        content = delta.get('content', '')
-                        if content:
-                            full_response += content
-                            yield {
-                                "type": "content",
-                                "content": content
-                            }
-                except json.JSONDecodeError:
-                    # 如果不是JSON，直接使用
-                    if chunk:
-                        full_response += chunk
-                        yield {
-                            "type": "content",
-                            "content": chunk
-                        }
+            async for content in self.deepseek_client.chat_stream(messages):
+                # content 现在是纯文本内容，不再是JSON
+                if content:
+                    full_response += content
+                    yield {
+                        "type": "content",
+                        "content": content
+                    }
         except Exception as e:
             print(f"流式生成错误: {e}")
             import traceback

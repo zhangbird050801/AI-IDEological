@@ -1800,18 +1800,24 @@ const showBatchOperations = () => {
 const fetchStatistics = async () => {
   try {
     // 获取所有案例总数
-    const allResponse = await request.get('/ideological/cases/', { params: { page_size: 100 } })
+    const allResponse = await request.get('/ideological/cases/', { params: { page_size: 1 } })
     const allData = allResponse?.data || allResponse
     const total = allData?.total ?? 0
     totalCases.value = total
     
-    // 获取所有案例数据用于统计
-    const allItems = allData?.items || []
+    // 获取我的案例统计（使用新的API）
+    try {
+      const myStatsResponse = await request.get('/ideological/cases/statistics/mine')
+      const myStats = myStatsResponse?.data || myStatsResponse
+      myCases.value = myStats?.total || 0
+    } catch (error) {
+      console.error('获取我的案例统计失败:', error)
+      myCases.value = 0
+    }
     
-    // 计算我的案例数（假设有author字段）
-    // 如果API有单独的我的案例接口，应该调用那个接口
-    // 这里暂时使用简单计数，实际应该过滤当前用户的案例
-    myCases.value = allItems.filter(item => item.author_id).length || Math.floor(total * 0.6)
+    // 获取所有案例数据用于统计热门和评分
+    const allItemsResponse = await request.get('/ideological/cases/', { params: { page_size: 100 } })
+    const allItems = allItemsResponse?.data?.items || []
     
     // 计算热门案例数（使用次数>0或评分>0的案例）
     hotCases.value = allItems.filter(item => 

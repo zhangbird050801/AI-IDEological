@@ -3,7 +3,7 @@ import { request } from '@/utils/http'
 // Accepts either:
 // - an array of messages: [{ role, content }, ...]
 // - a single string (user content) -> convert to messages array
-export function chatAPI(messages) {
+export function chatAPI(messages, options = {}) {
   let payloadMessages = messages
   // if caller passed a plain string, wrap into a user message
   if (typeof messages === 'string') {
@@ -17,11 +17,16 @@ export function chatAPI(messages) {
     else payloadMessages = [{ role: 'user', content: String(m) }]
   }
 
-  return request.post('/aigc/chat', { messages: payloadMessages })
+  return request.post('/aigc/chat', { 
+    messages: payloadMessages,
+    enable_web_search: options.enableWebSearch || false
+  })
 }
 
 // Streamed chat via Server-Sent Events (SSE)
-export function chatStream(messages) {
+export function chatStream(messages, options = {}) {
+  console.log('chatStream 调用，options:', options)
+  
   let payloadMessages = messages
   if (typeof messages === 'string') {
     payloadMessages = [{ role: 'user', content: messages }]
@@ -34,6 +39,13 @@ export function chatStream(messages) {
 
   const base = import.meta.env.VITE_BASE_API || ''
   const url = `${base}/aigc/chat/stream`
+  
+  const payload = { 
+    messages: payloadMessages,
+    enable_web_search: options.enableWebSearch || false
+  }
+  
+  console.log('发送请求到:', url, '参数:', payload)
 
   const controller = new AbortController()
 
@@ -42,7 +54,7 @@ export function chatStream(messages) {
     const resp = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages: payloadMessages }),
+      body: JSON.stringify(payload),
       signal: controller.signal,
     })
 

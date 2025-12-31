@@ -200,8 +200,13 @@ async def init_roles():
         await admin_role.menus.add(*all_menus)
         await user_role.menus.add(*all_menus)
 
-        # 为普通用户分配基本API
-        basic_apis = await Api.filter(Q(method__in=["GET"]) | Q(tags="基础模块"))
+        # 为普通用户分配基本API（GET请求、基础模块、课程相关、思政相关）
+        basic_apis = await Api.filter(
+            Q(method__in=["GET"]) | 
+            Q(tags__in=["基础模块", "课程管理", "章节管理", "知识点管理", 
+                       "思政主题分类", "思政案例", "提示词模板", "教学资源",
+                       "AIGC生成", "提示词助手"])
+        )
         await user_role.apis.add(*basic_apis)
 
 

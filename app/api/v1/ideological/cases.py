@@ -424,6 +424,21 @@ async def get_recommended_cases(
     )
     return [IdeologicalCase.from_orm(case) for case in cases]
 
+@router.get("/statistics/mine", summary="获取我的案例统计")
+async def get_my_cases_statistics(
+    current_user: User = Depends(AuthControl.is_authed)
+):
+    """获取当前用户的案例统计信息"""
+    total = await IdeologicalCaseModel.filter(author_id=current_user.id).count()
+    published = await IdeologicalCaseModel.filter(author_id=current_user.id, status="published").count()
+    draft = await IdeologicalCaseModel.filter(author_id=current_user.id, status="draft").count()
+    
+    return {
+        "total": total,
+        "published": published,
+        "draft": draft
+    }
+
 @router.post("/{case_id}/rate", summary="评分案例")
 async def rate_case(
     case_id: int,

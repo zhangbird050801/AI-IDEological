@@ -288,6 +288,21 @@ async def get_system_templates(
     templates = await template_service.get_system_templates()
     return [PromptTemplate.model_validate(template) for template in templates]
 
+@router.get("/statistics/mine", summary="获取我的模板统计")
+async def get_my_templates_statistics(
+    current_user: User = Depends(AuthControl.is_authed)
+):
+    """获取当前用户的模板统计信息"""
+    total = await PromptTemplateModel.filter(creator_id=current_user.id).count()
+    active = await PromptTemplateModel.filter(creator_id=current_user.id, is_active=True).count()
+    inactive = await PromptTemplateModel.filter(creator_id=current_user.id, is_active=False).count()
+    
+    return {
+        "total": total,
+        "active": active,
+        "inactive": inactive
+    }
+
 @router.post("/{template_id}/rate", summary="评分模板")
 async def rate_template(
     template_id: int,

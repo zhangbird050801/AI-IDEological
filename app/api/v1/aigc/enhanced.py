@@ -171,12 +171,11 @@ class EnhancedAIGCService:
             async def event_generator():
                 nonlocal token_count
                 try:
-                    async for chunk in self.client.chat_stream(messages):
-                        # 处理chunk内容
-                        chunk_content = self._extract_content_from_chunk(chunk)
-                        if chunk_content:
-                            full_content.append(chunk_content)
-                            yield f"data: {json.dumps({'content': chunk_content})}\n\n"
+                    async for content in self.client.chat_stream(messages):
+                        # content 现在是纯文本内容
+                        if content:
+                            full_content.append(content)
+                            yield f"data: {json.dumps({'content': content}, ensure_ascii=False)}\n\n"
 
                     # 生成完成后，保存历史记录
                     complete_content = ''.join(full_content)
@@ -199,7 +198,7 @@ class EnhancedAIGCService:
 
                     history = await GenerationHistoryModel.create(**history_data.dict())
                     # 发送完成信号
-                    yield f"data: {json.dumps({'type': 'complete', 'generation_id': history.id})}\n\n"
+                    yield f"data: {json.dumps({'type': 'complete', 'generation_id': history.id}, ensure_ascii=False)}\n\n"
 
                 except Exception as e:
                     yield f"event: error\ndata: {str(e)}\n\n"
@@ -267,21 +266,6 @@ class EnhancedAIGCService:
             base_prompt += f"\n\n思政主题：{ideological_theme}"
 
         return base_prompt
-
-    def _extract_content_from_chunk(self, chunk: str) -> str:
-        """从流式响应中提取内容"""
-        try:
-            import json
-            data = json.loads(chunk)
-            if data.get("choices"):
-                for choice in data["choices"]:
-                    if choice.get("delta"):
-                        content = choice["delta"].get("content", "")
-                        if content:
-                            return content
-            return ""
-        except:
-            return ""
 
 aigc_service = EnhancedAIGCService()
 

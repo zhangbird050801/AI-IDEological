@@ -37,11 +37,13 @@
       </div>
 
       <div class="message-body">
-        <div v-if="message.role === 'assistant' && message.isStreaming" class="streaming-content">
-          <span>{{ message.content }}</span>
+        <div v-if="message.role === 'assistant' && message.isStreaming" class="message-text streaming-content">
+          <div class="rendered-markdown" v-html="renderedContent"></div>
           <span class="cursor">|</span>
         </div>
-        <div v-else class="message-text" v-html="renderMarkdown(message.content)"></div>
+        <div v-else class="message-text">
+          <div class="rendered-markdown" v-html="renderedContent"></div>
+        </div>
 
         <div v-if="message.attachments?.length" class="message-attachments">
           <n-space>
@@ -105,6 +107,8 @@ const messageClass = computed(() => ({
   'assistant-message': props.message.role === 'assistant',
 }))
 
+const renderedContent = computed(() => renderMarkdown(props.message?.content ?? ''))
+
 function formatTime(timestamp) {
   if (!timestamp) return ''
   const date = new Date(timestamp)
@@ -116,13 +120,14 @@ const md = new MarkdownIt({
   html: true, // 允许 HTML 标签
   linkify: true, // 自动转换链接
   breaks: true, // 转换换行符为 <br>
-  // typographer: true, // 启用 typographer
+  typographer: true, // 启用 typographer
 })
 md.use(markdownItKatex, { throwOnError: false })
 
 function renderMarkdown(content) {
-  if (!content) return ''
-  let normalized = content
+  if (content === null || content === undefined) return ''
+  const rawContent = typeof content === 'string' ? content : String(content)
+  let normalized = rawContent
     .replace(/\\\[((?:.|\n)*?)\\\]/g, (_, math) => `$$${math}$$`)
     .replace(/\\\((.*?)\\\)/g, (_, math) => `$${math}$`)
   const displayBlocks = []
@@ -299,14 +304,112 @@ function renderMarkdown(content) {
   padding: 0; /* 重置内边距 */
 }
 
+/* 表格样式 */
+.message-text :deep(table) {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1em 0;
+  border: 1px solid var(--n-border-color);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.message-text :deep(thead) {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+.message-text :deep(th) {
+  padding: 12px;
+  text-align: left;
+  font-weight: 600;
+  border-bottom: 2px solid var(--n-border-color);
+  border-right: 1px solid var(--n-border-color);
+}
+
+.message-text :deep(th:last-child) {
+  border-right: none;
+}
+
+.message-text :deep(td) {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--n-border-color);
+  border-right: 1px solid var(--n-border-color);
+}
+
+.message-text :deep(td:last-child) {
+  border-right: none;
+}
+
+.message-text :deep(tr:last-child td) {
+  border-bottom: none;
+}
+
+.message-text :deep(tbody tr:hover) {
+  background-color: rgba(0, 0, 0, 0.02);
+}
+
+/* 标题样式 */
+.message-text :deep(h1),
+.message-text :deep(h2),
+.message-text :deep(h3),
+.message-text :deep(h4),
+.message-text :deep(h5),
+.message-text :deep(h6) {
+  margin-top: 1em;
+  margin-bottom: 0.5em;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.message-text :deep(h1) { font-size: 1.8em; }
+.message-text :deep(h2) { font-size: 1.5em; }
+.message-text :deep(h3) { font-size: 1.3em; }
+.message-text :deep(h4) { font-size: 1.1em; }
+.message-text :deep(h5) { font-size: 1em; }
+.message-text :deep(h6) { font-size: 0.9em; }
+
+/* 引用块样式 */
+.message-text :deep(blockquote) {
+  border-left: 4px solid var(--n-primary-color);
+  padding-left: 1em;
+  margin: 1em 0;
+  color: rgba(0, 0, 0, 0.6);
+  font-style: italic;
+}
+
+/* 水平线样式 */
+.message-text :deep(hr) {
+  border: none;
+  border-top: 1px solid var(--n-border-color);
+  margin: 1.5em 0;
+}
+
+/* 链接样式 */
+.message-text :deep(a) {
+  color: var(--n-primary-color);
+  text-decoration: none;
+}
+
+.message-text :deep(a:hover) {
+  text-decoration: underline;
+}
+
 .streaming-content {
+  display: flex;
+  gap: 6px;
   line-height: 1.6;
   color: var(--n-text-color);
+}
+
+.rendered-markdown {
+  flex: 1;
+  min-width: 0;
 }
 
 .cursor {
   animation: blink 1s infinite;
   color: var(--n-primary-color);
+  align-self: flex-start;
 }
 
 @keyframes blink {

@@ -35,7 +35,7 @@ class Settings(BaseSettings):
                     "host": "localhost",  # Database host address
                     "port": 3306,  # Database port
                     "user": "root",  # Database username
-                    "password": "12345678",  # Database password - 修改为你的实际密码
+                    "password": "root",  # Database password - 修改为你的实际密码
                     "database": "AIdata",  # Database name
                 },
             },

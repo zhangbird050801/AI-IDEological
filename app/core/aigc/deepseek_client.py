@@ -65,16 +65,15 @@ class DeepseekClient:
             return resp.json()
 
     async def chat_stream(self, messages: List[Dict[str, Any]]):
-        """Async generator that yields string chunks from DeepSeek streaming responses.
+        """Async generator that yields parsed content from streaming responses.
 
-        The DeepSeek/OpenAI-compatible streaming protocol often emits lines prefixed with `data:`.
-        This function reads the response stream and yields decoded text fragments for the caller
-        to forward to clients (or aggregate into a single string).
+        This method parses the SSE stream and yields only the actual content text,
+        not the raw JSON chunks. This makes it easier for consumers to use.
         """
         url = f"{self.base_url}/v1/chat/completions"
 
         if not self.api_key:
-            raise RuntimeError("DEEPSEEK_API_KEY is not configured in environment")
+            raise RuntimeError("API key is not configured in environment")
 
         headers = {
             "Authorization": f"Bearer {self.api_key}",
@@ -90,6 +89,7 @@ class DeepseekClient:
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             async with client.stream("POST", url, json=payload, headers=headers) as resp:
                 resp.raise_for_status()
+                buffer = ""
                 async for chunk in resp.aiter_bytes():
                     if not chunk:
                         continue
@@ -98,17 +98,56 @@ class DeepseekClient:
                     except Exception:
                         text = chunk.decode('latin-1', errors='ignore')
 
-                    # If server uses SSE `data: ...\n\n`, extract payloads
-                    for line in text.splitlines():
+                    buffer += text
+                    
+                    # Process complete lines
+                    while '\n' in buffer:
+                        line, buffer = buffer.split('\n', 1)
                         line = line.strip()
+                        
                         if not line:
                             continue
+                            
+                        # Handle SSE format: "data: {...}"
                         if line.startswith('data:'):
-                            data_part = line[len('data:'):].strip()
-                            # Some streams use [DONE] marker
+                            data_part = line[5:].strip()  # Remove "data:" prefix
+                            
+                            # Check for [DONE] marker
                             if data_part == '[DONE]':
                                 return
-                            yield data_part
+                            
+                            # Parse JSON and extract content
+                            try:
+                                import json
+                                chunk_data = json.loads(data_part)
+                                
+                                # Extract content from delta
+                                if 'choices' in chunk_data and len(chunk_data['choices']) > 0:
+                                    choice = chunk_data['choices'][0]
+                                    delta = choice.get('delta', {})
+                                    content = delta.get('content', '')
+                                    
+                                    if content:
+                                        yield content
+                                        
+                            except json.JSONDecodeError as e:
+                                # Log parsing error but continue
+                                print(f"⚠️ JSON解析失败: {data_part[:100]}... 错误: {e}")
+                                continue
                         else:
-                            # plain chunk
-                            yield line
+                            # Try to parse as JSON directly (non-SSE format)
+                            try:
+                                import json
+                                chunk_data = json.loads(line)
+                                
+                                if 'choices' in chunk_data and len(chunk_data['choices']) > 0:
+                                    choice = chunk_data['choices'][0]
+                                    delta = choice.get('delta', {})
+                                    content = delta.get('content', '')
+                                    
+                                    if content:
+                                        yield content
+                                        
+                            except json.JSONDecodeError:
+                                # Not JSON, skip
+                                continue

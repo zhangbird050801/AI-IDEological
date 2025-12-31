@@ -762,15 +762,30 @@ const fetchOptions = async () => {
 
 const fetchStatistics = async () => {
   try {
-    // 获取统计数据
+    // 获取总资源数
     const allResponse = await request.get('/ideological/resources/', { params: { page_size: 1 } })
     const data = allResponse?.data || allResponse || {}
     const total = data?.total ?? 0
-
     totalResources.value = total
-    myResources.value = Math.floor(total * 0.6)
-    fileResources.value = Math.floor(total * 0.8)
-    linkResources.value = total - Math.floor(total * 0.8)
+
+    // 获取我的资源统计（使用新的API）
+    try {
+      const myStatsResponse = await request.get('/ideological/resources/statistics/mine')
+      const myStats = myStatsResponse?.data || myStatsResponse
+      myResources.value = myStats?.total || 0
+      
+      // 按类型统计
+      const byType = myStats?.by_type || {}
+      fileResources.value = Object.values(byType).reduce((sum, count) => {
+        return sum + (count || 0)
+      }, 0) - (byType.link || 0)
+      linkResources.value = byType.link || 0
+    } catch (error) {
+      console.error('获取我的资源统计失败:', error)
+      myResources.value = 0
+      fileResources.value = 0
+      linkResources.value = 0
+    }
   } catch (error) {
     console.error('获取统计数据失败:', error)
     totalResources.value = 0

@@ -528,17 +528,25 @@ const fetchOptions = async () => {
 
 const fetchStatistics = async () => {
   try {
-    // 获取统计数据
+    // 获取总模板数
     const allResponse = await request.get('/ideological/templates/', { params: { page_size: 1 } })
     const total = allResponse?.data?.total ?? allResponse?.total ?? 0
-    
     totalTemplates.value = total
 
+    // 获取系统模板数
     const systemResponse = await request.get('/ideological/templates/system/list')
     const systemCount = (systemResponse?.data || systemResponse || []).length
     systemTemplates.value = systemCount
 
-    myTemplates.value = total - systemCount
+    // 获取我的模板统计（使用新的API）
+    try {
+      const myStatsResponse = await request.get('/ideological/templates/statistics/mine')
+      const myStats = myStatsResponse?.data || myStatsResponse
+      myTemplates.value = myStats?.total || 0
+    } catch (error) {
+      console.error('获取我的模板统计失败:', error)
+      myTemplates.value = 0
+    }
 
     // 模拟今日使用数据
     todayUsage.value = Math.floor(Math.random() * 50) + 10
