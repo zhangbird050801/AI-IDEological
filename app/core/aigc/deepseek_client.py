@@ -6,13 +6,22 @@ from app.settings.config import settings
 
 class DeepseekClient:
     def __init__(self):
-        # Prefer project settings (pydantic) when available, fallback to env
-        self.api_key = getattr(settings, 'DEEPSEEK_API_KEY', None) or os.getenv('DEEPSEEK_API_KEY', '')
-        self.base_url = (getattr(settings, 'DEEPSEEK_API_BASE', None) or os.getenv('DEEPSEEK_API_BASE', 'https://api.deepseek.com')).rstrip('/')
-        self.model = getattr(settings, 'AIGC_MODEL', None) or os.getenv('AIGC_MODEL', 'deepseek-chat')
+        # 从 settings 对象读取 AIGC_PROVIDER（会自动加载 .env 文件）
+        provider = getattr(settings, 'AIGC_PROVIDER', 'deepseek').lower()
+        
+        if provider == 'kimi' or provider == 'moonshot':
+            # 使用 Kimi/Moonshot API
+            self.api_key = getattr(settings, 'MOONSHOT_API_KEY', None) or ''
+            self.base_url = (getattr(settings, 'MOONSHOT_API_BASE', None) or 'https://api.moonshot.cn/v1').rstrip('/')
+            self.model = getattr(settings, 'AIGC_MODEL', None) or 'moonshot-v1-8k'
+        else:
+            # 使用 DeepSeek API (默认)
+            self.api_key = getattr(settings, 'DEEPSEEK_API_KEY', None) or ''
+            self.base_url = (getattr(settings, 'DEEPSEEK_API_BASE', None) or 'https://api.deepseek.com').rstrip('/')
+            self.model = getattr(settings, 'AIGC_MODEL', None) or 'deepseek-chat'
 
         # AIGC_TIMEOUT may be expressed in milliseconds in your .env; accept ms or seconds
-        raw_timeout = getattr(settings, 'AIGC_TIMEOUT', None) or os.getenv('AIGC_TIMEOUT', '60000')
+        raw_timeout = getattr(settings, 'AIGC_TIMEOUT', None) or '60000'
         try:
             t = int(raw_timeout)
             # if large (>=1000) assume ms
@@ -22,6 +31,10 @@ class DeepseekClient:
                 self.timeout = float(raw_timeout)
             except Exception:
                 self.timeout = 60.0
+        
+        print(f"🤖 AIGC Provider: {provider}")
+        print(f"🔗 API Base URL: {self.base_url}")
+        print(f"📦 Model: {self.model}")
 
     async def chat(self, messages: List[Dict[str, Any]]):
         """Call DeepSeek/OpenAI-compatible chat completions endpoint.

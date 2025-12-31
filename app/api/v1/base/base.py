@@ -52,13 +52,15 @@ async def get_user_menu():
     user_obj = await User.filter(id=user_id).first()
     menus: list[Menu] = []
     if user_obj.is_superuser:
-        menus = await Menu.all()
+        menus = await Menu.filter(is_deleted=False).all()
     else:
         role_objs: list[Role] = await user_obj.roles
         for role_obj in role_objs:
             menu = await role_obj.menus
             menus.extend(menu)
         menus = list(set(menus))
+        # 过滤已删除的菜单
+        menus = [m for m in menus if not m.is_deleted]
     parent_menus: list[Menu] = []
     for menu in menus:
         if menu.parent_id == 0:

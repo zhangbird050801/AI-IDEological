@@ -256,22 +256,34 @@ function exportChat() {
     return
   }
 
-  const chatContent = props.messages
-    .map((msg) => {
-      const role = msg.role === 'user' ? '教师' : 'AIGC助手'
-      return `${role}: ${msg.content}`
+  // 生成 Markdown 格式内容
+  const now = new Date()
+  const dateStr = now.toLocaleString('zh-CN')
+  
+  let chatContent = `# AIGC 对话记录\n\n`
+  chatContent += `**导出时间**: ${dateStr}\n\n`
+  chatContent += `**消息数量**: ${props.messages.length}\n\n`
+  chatContent += `---\n\n`
+  
+  chatContent += props.messages
+    .map((msg, index) => {
+      const role = msg.role === 'user' ? '👤 教师' : '🤖 AIGC助手'
+      const timestamp = msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString('zh-CN') : ''
+      const timeInfo = timestamp ? ` <small>(${timestamp})</small>` : ''
+      
+      return `### ${role}${timeInfo}\n\n${msg.content}\n`
     })
-    .join('\n\n')
+    .join('\n---\n\n')
 
-  const blob = new Blob([chatContent], { type: 'text/plain;charset=utf-8' })
+  const blob = new Blob([chatContent], { type: 'text/markdown;charset=utf-8' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = `思政案例对话_${new Date().toLocaleDateString()}.txt`
+  a.download = `AIGC对话_${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}.md`
   a.click()
   URL.revokeObjectURL(url)
 
-  message.success('对话已导出')
+  message.success('对话已导出为 Markdown 格式')
 }
 
 // 重置设置
@@ -321,6 +333,7 @@ onUnmounted(() => {
 defineExpose({
   scrollToBottom,
   getSettings: () => settings.value,
+  exportChat,
 })
 </script>
 

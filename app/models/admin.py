@@ -54,6 +54,8 @@ class Menu(BaseModel, TimestampMixin):
     component = fields.CharField(max_length=100, description="组件")
     keepalive = fields.BooleanField(default=True, description="存活")
     redirect = fields.CharField(max_length=100, null=True, description="重定向")
+    is_deleted = fields.BooleanField(default=False, description="软删除标记", index=True)
+    deleted_at = fields.DatetimeField(null=True, description="删除时间")
 
     class Meta:
         table = "menu"

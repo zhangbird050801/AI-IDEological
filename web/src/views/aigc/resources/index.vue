@@ -287,13 +287,13 @@
       </n-card>
     </div>
 
-    <!-- 上传资源弹窗 -->
+    <!-- 上传/编辑资源弹窗 -->
     <n-modal
       v-model:show="uploadModalVisible"
       :mask-closable="false"
       preset="dialog"
       style="width: 600px"
-      title="上传教学资源"
+      :title="editingResource ? '编辑教学资源' : '上传教学资源'"
     >
       <n-form
         ref="uploadFormRef"
@@ -312,7 +312,7 @@
           />
         </n-form-item>
 
-        <n-form-item label="资源文件" path="file">
+        <n-form-item label="资源文件" path="file" v-if="!editingResource">
           <n-upload
             v-model:file-list="uploadForm.fileList"
             :max="1"
@@ -333,6 +333,13 @@
               </n-p>
             </n-upload-dragger>
           </n-upload>
+        </n-form-item>
+        
+        <n-form-item label="当前文件" v-if="editingResource && editingResource.file_path">
+          <n-text>{{ editingResource.file_name || '已上传文件' }}</n-text>
+          <n-text depth="3" style="margin-left: 8px; font-size: 12px">
+            (编辑模式下无法修改文件)
+          </n-text>
         </n-form-item>
 
         <n-form-item label="资源类型" path="resource_type">
@@ -394,7 +401,7 @@
         <n-space>
           <n-button @click="uploadModalVisible = false">取消</n-button>
           <n-button type="primary" @click="handleUploadResource" :loading="uploadLoading">
-            上传
+            {{ editingResource ? '保存' : '上传' }}
           </n-button>
         </n-space>
       </template>
@@ -569,6 +576,7 @@ const uploadModalVisible = ref(false)
 const addLinkModalVisible = ref(false)
 const previewVisible = ref(false)
 const previewLoading = ref(false)
+const editingResource = ref(null)
 const previewType = ref('')
 const previewUrl = ref('')
 const previewImageUrl = ref('')
@@ -636,7 +644,11 @@ const uploadFormRules = {
     { max: 100, message: '标题长度不能超过100个字符', trigger: 'blur' },
   ],
   fileList: [
-    { required: true, message: '请选择要上传的文件', trigger: 'change' },
+    { 
+      required: computed(() => !editingResource.value), 
+      message: '请选择要上传的文件', 
+      trigger: 'change' 
+    },
   ],
   resource_type: [
     { required: true, message: '请选择资源类型', trigger: 'change' },
@@ -795,7 +807,24 @@ const handlePageSizeChange = (pageSize) => {
 }
 
 const showUploadModal = () => {
+  editingResource.value = null
   resetUploadForm()
+  uploadModalVisible.value = true
+}
+
+// 编辑资源
+const editResource = (resource) => {
+  editingResource.value = resource
+  Object.assign(uploadForm, {
+    title: resource.title,
+    description: resource.description || '',
+    fileList: [],
+    resource_type: resource.resource_type || 'other',
+    software_engineering_chapter: resource.software_engineering_chapter || null,
+    theme_category_id: resource.theme_category_id || null,
+    tags: resource.tags || [],
+    is_public: resource.is_public !== false,
+  })
   uploadModalVisible.value = true
 }
 
@@ -842,33 +871,53 @@ const handleUploadResource = async () => {
     await uploadFormRef.value?.validate()
     uploadLoading.value = true
 
-    if (!uploadForm.fileList.length) {
-      message.error('请选择要上传的文件')
-      return
+    if (editingResource.value) {
+      // 编辑模式 - 使用 PUT 请求
+      const data = {
+        title: uploadForm.title,
+        description: uploadForm.description || '',
+        resource_type: uploadForm.resource_type || 'other',
+        software_engineering_chapter: uploadForm.software_engineering_chapter || null,
+        theme_category_id: uploadForm.theme_category_id || null,
+        tags: uploadForm.tags || [],
+        is_public: uploadForm.is_public,
+      }
+
+      await request.put(`/ideological/resources/${editingResource.value.id}`, data)
+      message.success('资源更新成功')
+    } else {
+      // 上传模式 - 使用 POST 请求
+      if (!uploadForm.fileList.length) {
+        message.error('请选择要上传的文件')
+        return
+      }
+
+      const formData = new FormData()
+      formData.append('title', uploadForm.title)
+      formData.append('description', uploadForm.description || '')
+      formData.append('file', uploadForm.fileList[0].file)
+      formData.append('resource_type', uploadForm.resource_type || 'other')
+      formData.append('software_engineering_chapter', uploadForm.software_engineering_chapter || '')
+      formData.append('theme_category_id', uploadForm.theme_category_id || '')
+      formData.append('tags', (uploadForm.tags || []).join(','))
+      formData.append('is_public', uploadForm.is_public)
+
+      await request.post('/ideological/resources/', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      })
+
+      message.success('资源上传成功')
     }
 
-    const formData = new FormData()
-    formData.append('title', uploadForm.title)
-    formData.append('description', uploadForm.description || '')
-    formData.append('file', uploadForm.fileList[0].file)
-    formData.append('resource_type', uploadForm.resource_type || 'other')
-    formData.append('software_engineering_chapter', uploadForm.software_engineering_chapter || '')
-    formData.append('theme_category_id', uploadForm.theme_category_id || '')
-    formData.append('tags', (uploadForm.tags || []).join(','))
-    formData.append('is_public', uploadForm.is_public)
-
-    await request.post('/ideological/resources/', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    })
-
-    message.success('资源上传成功')
     uploadModalVisible.value = false
+    editingResource.value = null
     fetchResources()
     fetchStatistics()
   } catch (error) {
-    message.error('资源上传失败')
+    console.error(editingResource.value ? '更新失败:' : '上传失败:', error)
+    message.error(editingResource.value ? '资源更新失败' : '资源上传失败')
   } finally {
     uploadLoading.value = false
   }
@@ -1139,7 +1188,7 @@ const handleResourceAction = (key, resource) => {
       previewResource(resource)
       break
     case 'edit':
-      message.info('编辑功能开发中')
+      editResource(resource)
       break
     case 'copy':
       copyResourceLink(resource)

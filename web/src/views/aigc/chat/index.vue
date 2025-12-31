@@ -547,6 +547,12 @@ const selectedResources = computed(() => Array.from(selectedResourceMap.values()
 
 // 处理发送消息
 async function handleSendMessage(data) {
+  // 防止竞态条件：如果正在生成中，忽略新的请求
+  if (isGenerating.value) {
+    message.warning('正在生成中，请稍候...')
+    return
+  }
+
   const userMessage = {
     id: Date.now(),
     role: 'user',
@@ -614,14 +620,21 @@ async function handleSendMessage(data) {
               try {
                 const parsed = JSON.parse(trimmed)
                 if (parsed && typeof parsed === 'object') {
-                  if (Array.isArray(parsed.choices)) {
-                    // Ignore raw stream chunks accidentally surfaced as text.
+                  if (Array.isArray(parsed.choices) || parsed.object === 'chat.completion.chunk') {
+                    // Ignore raw stream chunks accidentally surfaced as text - do NOT output JSON
+                    textToAppend += ''
                   } else if (typeof parsed.data === 'string') {
                     textToAppend += parsed.data
                   }
                 }
               } catch (e) {
-                textToAppend += rawText
+                // JSON parse failed, check if it looks like a stream chunk before outputting
+                if (trimmed.includes('chat.completion') || trimmed.includes('choices') || trimmed.includes('delta')) {
+                  // Looks like malformed stream chunk, ignore it
+                  textToAppend += ''
+                } else {
+                  textToAppend += rawText
+                }
               }
             } else {
               textToAppend += rawText
@@ -1004,37 +1017,60 @@ async function confirmSaveCase() {
   })
 }
 
-// 清空历史
+// 清空当前对话
 function handleClearHistory() {
   messages.value = []
   currentSessionId.value = null
   localStorage.removeItem('aigc-chat-current-messages')
 }
 
+// 清空所有历史记录
+function clearAllHistory() {
+  dialog.warning({
+    title: '确认清空',
+    content: '确定要清空所有生成历史吗？此操作不可恢复。',
+    positiveText: '确定',
+    negativeText: '取消',
+    onPositiveClick: () => {
+      chatHistory.value = []
+      localStorage.removeItem('aigc-chat-history')
+      message.success('已清空所有历史记录')
+    }
+  })
+}
+
 // 保存到历史记录
 function saveToHistory() {
   if (messages.value.length >= 2) {
+    // 每次生成都创建新的会话ID，避免覆盖旧的历史记录
+    const sessionId = Date.now()
+    
+    // 找到最后一条用户消息作为标题
+    const lastUserMessage = [...messages.value].reverse().find(m => m.role === 'user')
+    const title = lastUserMessage 
+      ? lastUserMessage.content.substring(0, 30) + (lastUserMessage.content.length > 30 ? '...' : '')
+      : '新对话'
+    
     const session = {
-      id: currentSessionId.value || Date.now(),
-      title: messages.value[0].content.substring(0, 30) + '...',
+      id: sessionId,
+      title: title,
       // store plain objects (avoid reactive proxies)
       messages: messages.value.map((m) => ({ ...m })),
       createdAt: new Date().toISOString(),
     }
 
-    const existingIndex = chatHistory.value.findIndex((s) => s.id === session.id)
-    if (existingIndex >= 0) {
-      chatHistory.value[existingIndex] = session
-    } else {
-      chatHistory.value.unshift(session)
-    }
+    // 总是添加为新的历史记录
+    chatHistory.value.unshift(session)
 
-    currentSessionId.value = session.id
+    currentSessionId.value = sessionId
 
     // 限制历史记录数量
     if (chatHistory.value.length > 20) {
       chatHistory.value = chatHistory.value.slice(0, 20)
     }
+    
+    // 生成完成后重置sessionId，下次发送会创建新会话
+    currentSessionId.value = null
   }
 }
 
@@ -1067,17 +1103,18 @@ function showCaseLibrary() {
   router.push({ path: '/aigc/cases' })
 }
 
-// 显示提示词模板
+// 随机加载提示词模板
 function showPromptTemplates() {
   if (templateOptions.value.length === 0) {
     message.warning('暂无可用的提示词模板')
     return
   }
-  // 默认加载第一个模板
-  const first = templateOptions.value[0]
-  selectedTemplateId.value = first.value
+  // 随机选择一个模板
+  const randomIndex = Math.floor(Math.random() * templateOptions.value.length)
+  const randomTemplate = templateOptions.value[randomIndex]
+  selectedTemplateId.value = randomTemplate.value
   applyPromptPreset()
-  message.success(`已加载模板: ${first.label}`)
+  message.success(`已随机加载模板: ${randomTemplate.label}`)
 }
 
 // 导出当前对话

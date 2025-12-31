@@ -197,6 +197,12 @@
                         </template>
                         使用
                       </n-button>
+                      <n-button size="small" text @click.stop="rateTemplate(template)">
+                        <template #icon>
+                          <n-icon><Icon icon="mdi:star" /></n-icon>
+                        </template>
+                        评分
+                      </n-button>
                     </n-space>
                   </div>
                 </div>
@@ -213,7 +219,7 @@
                       <n-dropdown
                         trigger="hover"
                         :options="getTemplateActionOptions(template)"
-                        @select="handleTemplateAction"
+                        @select="(key) => handleTemplateAction(key, template)"
                       >
                         <n-button size="small" text>
                           <template #icon>
@@ -717,17 +723,17 @@ const deleteTemplate = (template) => {
 }
 
 const rateTemplate = (template) => {
-  // 创建一个简单的评分弹窗
+  let selectedRating = 3 // 使用普通变量保存选择的星级
+  
   dialog.create({
     title: `为"${template.name}"评分`,
     content: () => {
-      const rating = ref(3)
       return h('div', { style: 'padding: 20px; text-align: center;' }, [
         h('p', { style: 'margin-bottom: 16px; color: #666;' }, '请为这个提示词模板评分：'),
         h('div', { style: 'margin-bottom: 16px;' }, [
           h(NRate, {
-            value: rating.value,
-            'onUpdate:value': (val) => { rating.value = val },
+            defaultValue: 3,
+            onUpdateValue: (val) => { selectedRating = val },
             size: 'large'
           })
         ]),
@@ -738,7 +744,7 @@ const rateTemplate = (template) => {
     negativeText: '取消',
     onPositiveClick: async () => {
       try {
-        await request.post(`/ideological/templates/${template.id}/rate`, {}, { params: { rating: 4 } })
+        await request.post(`/ideological/templates/${template.id}/rate`, {}, { params: { rating: selectedRating } })
         message.success('评分成功！')
         fetchTemplates() // 刷新列表
         fetchStatistics() // 刷新统计

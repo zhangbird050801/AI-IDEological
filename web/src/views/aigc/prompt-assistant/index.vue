@@ -1180,6 +1180,14 @@ const handleSaveTemplate = async () => {
 
     const templateData = { ...templateForm }
     templateData.variables = extractedVariables.value
+    
+    // 确保数字类型字段转为字符串
+    if (typeof templateData.software_engineering_chapter === 'number') {
+      templateData.software_engineering_chapter = String(templateData.software_engineering_chapter)
+    }
+    if (typeof templateData.theme_category_id === 'number') {
+      templateData.theme_category_id = String(templateData.theme_category_id)
+    }
 
     await request.post('/ideological/templates/', templateData)
     message.success('模板保存成功！')

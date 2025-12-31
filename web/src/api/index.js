@@ -30,6 +30,20 @@ const baseApis = {
   createMenu: (data = {}) => request.post('/menu/create', data),
   updateMenu: (data = {}) => request.post('/menu/update', data),
   deleteMenu: (params = {}) => request.delete('/menu/delete', { params }),
+  // 软删除菜单（移至回收站）
+  softDeleteMenu: (params = {}) => request.post('/menu/soft-delete', {}, { params }),
+  // 获取回收站列表
+  getRecycleBin: (params = {}) => request.get('/menu/recycle-bin', { params }),
+  // 恢复菜单
+  restoreMenu: (params = {}) => request.post('/menu/restore', {}, { params }),
+  // 永久删除
+  permanentDeleteMenu: (params = {}) => request.delete('/menu/permanent-delete', { params }),
+  // 清空回收站
+  emptyRecycleBin: () => request.post('/menu/empty-recycle-bin'),
+  // 更新菜单排序
+  updateMenuOrder: (params = {}) => request.post('/menu/update-order', {}, { params }),
+  // 批量更新排序
+  batchUpdateMenuOrder: (data = {}) => request.post('/menu/batch-update-order', data),
   // apis
   getApis: (params = {}) => request.get('/api/list', { params }),
   createApi: (data = {}) => request.post('/api/create', data),
