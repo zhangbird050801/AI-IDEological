@@ -374,14 +374,22 @@
         </n-grid>
 
         <n-form-item label="案例内容" path="content">
-          <n-input
-            v-model:value="caseForm.content"
-            type="textarea"
-            placeholder="请输入详细的案例内容"
-            :autosize="{ minRows: 6, maxRows: 12 }"
-            maxlength="5000"
-            show-count
-          />
+          <div class="case-content-editor">
+            <n-input
+              v-model:value="caseForm.content"
+              type="textarea"
+              placeholder="请输入详细的案例内容"
+              :autosize="{ minRows: 6, maxRows: 12 }"
+              maxlength="5000"
+              show-count
+            />
+            <n-card title="Markdown 预览" size="small" class="case-content-preview-card">
+              <div
+                class="case-content-preview markdown-content"
+                v-html="renderMarkdown(caseForm.content)"
+              ></div>
+            </n-card>
+          </div>
         </n-form-item>
 
         <n-form-item label="关键知识点" path="key_points">
@@ -395,6 +403,7 @@
           <n-dynamic-tags
             v-model:value="caseForm.discussion_questions"
             placeholder="按回车添加讨论问题"
+            class="discussion-questions-tags"
           />
         </n-form-item>
 
@@ -1928,6 +1937,7 @@ onMounted(() => {
   margin: 12px 0;
   line-height: 1.5;
   display: -webkit-box;
+  line-clamp: 3;
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
@@ -1957,6 +1967,19 @@ onMounted(() => {
   word-wrap: break-word;
 }
 
+.case-content-editor {
+  width: 100%;
+}
+
+.case-content-preview-card {
+  margin-top: 8px;
+}
+
+.case-content-preview {
+  max-height: 260px;
+  overflow: auto;
+}
+
 .markdown-content :deep(p) {
   margin: 0 0 8px;
   line-height: 1.6;
@@ -1970,6 +1993,32 @@ onMounted(() => {
 
 .markdown-content :deep(li) {
   margin: 4px 0;
+}
+
+.discussion-questions-tags {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.discussion-questions-tags :deep(.n-dynamic-tags__tags) {
+  flex-wrap: wrap;
+  max-width: 100%;
+}
+
+.discussion-questions-tags :deep(.n-tag) {
+  max-width: 100%;
+  height: auto;
+  align-items: flex-start;
+  padding: 2px 8px;
+  box-sizing: border-box;
+}
+
+.discussion-questions-tags :deep(.n-tag__content) {
+  padding: 0;
+  line-height: 1.5;
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 /* 响应式设计 */

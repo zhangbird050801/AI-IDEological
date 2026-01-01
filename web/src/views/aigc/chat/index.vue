@@ -141,12 +141,6 @@
                 <template #checked>启用联网搜索</template>
                 <template #unchecked>启用联网搜索</template>
               </n-switch>
-              <n-button size="small" block type="primary" @click="applyPromptPreset">
-                <template #icon>
-                  <n-icon><Icon icon="ant-design:edit-outlined" /></n-icon>
-                </template>
-                套用模板
-              </n-button>
             </n-space>
           </n-card>
 
@@ -606,68 +600,31 @@ async function handleSendMessage(data) {
     try {
       for await (const item of iterator) {
         // item is { type: 'chunk'|'text', payload: ... }
-        let textToAppend = ''
-        try {
-          if (item && item.type === 'chunk' && item.payload) {
-            const obj = item.payload
-            if (obj.choices && Array.isArray(obj.choices)) {
-              for (const c of obj.choices) {
-                if (c && c.delta) {
-                  // prefer delta.content, fallback to reasoning_content
-                  if (typeof c.delta.content === 'string' && c.delta.content.length > 0) {
-                    textToAppend += c.delta.content
-                  } else if (
-                    typeof c.delta.reasoning_content === 'string' &&
-                    c.delta.reasoning_content.length > 0
-                  ) {
-                    textToAppend += c.delta.reasoning_content
-                  }
-                }
-              }
-            } else if (typeof obj.data === 'string') {
-              textToAppend += obj.data
+        if (item && item.type === 'chunk' && item.payload) {
+          const obj = item.payload
+          if (obj && obj.type === 'content') {
+            const chunkText = obj.content ?? ''
+            // Preserve whitespace/newlines: do NOT trim.
+            if (typeof chunkText === 'string' && chunkText.length > 0) {
+              assistantMessage.content += chunkText
+              messages.value = [...messages.value]
+              await nextTick()
+              chatContainer.value?.scrollToBottom()
             }
-          } else if (item && item.type === 'text') {
-            const rawText = String(item.payload || '')
-            const trimmed = rawText.trim()
-            if (!trimmed) {
-              textToAppend += ''
-            } else if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
-              try {
-                const parsed = JSON.parse(trimmed)
-                if (parsed && typeof parsed === 'object') {
-                  if (Array.isArray(parsed.choices) || parsed.object === 'chat.completion.chunk') {
-                    // Ignore raw stream chunks accidentally surfaced as text - do NOT output JSON
-                    textToAppend += ''
-                  } else if (typeof parsed.data === 'string') {
-                    textToAppend += parsed.data
-                  }
-                }
-              } catch (e) {
-                // JSON parse failed, check if it looks like a stream chunk before outputting
-                if (trimmed.includes('chat.completion') || trimmed.includes('choices') || trimmed.includes('delta')) {
-                  // Looks like malformed stream chunk, ignore it
-                  textToAppend += ''
-                } else {
-                  textToAppend += rawText
-                }
-              }
-            } else {
-              textToAppend += rawText
-            }
-          } else {
-            if (typeof item === 'string') {
-              textToAppend += item
-            }
+          } else if (obj && obj.type === 'done') {
+            break
+          } else if (obj && (obj.type === 'error' || obj.error)) {
+            throw new Error(obj.error || 'Stream error')
           }
-        } catch (e) {
-          textToAppend = String(item)
-        }
-        if (textToAppend) {
-          assistantMessage.content += textToAppend
-          messages.value = [...messages.value]
-          await nextTick()
-          chatContainer.value?.scrollToBottom()
+        } else if (item && item.type === 'text') {
+          // Fallback: append raw text as-is
+          const rawText = String(item.payload || '')
+          if (rawText.length > 0) {
+            assistantMessage.content += rawText
+            messages.value = [...messages.value]
+            await nextTick()
+            chatContainer.value?.scrollToBottom()
+          }
         }
       }
       // stream finished

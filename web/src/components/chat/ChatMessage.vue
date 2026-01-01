@@ -128,6 +128,7 @@ function renderMarkdown(content) {
   if (content === null || content === undefined) return ''
   const rawContent = typeof content === 'string' ? content : String(content)
   let normalized = rawContent
+    // 处理数学公式
     .replace(/\\\[((?:.|\n)*?)\\\]/g, (_, math) => `$$${math}$$`)
     .replace(/\\\((.*?)\\\)/g, (_, math) => `$${math}$`)
   const displayBlocks = []

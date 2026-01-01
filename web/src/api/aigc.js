@@ -25,8 +25,6 @@ export function chatAPI(messages, options = {}) {
 
 // Streamed chat via Server-Sent Events (SSE)
 export function chatStream(messages, options = {}) {
-  console.log('chatStream 调用，options:', options)
-  
   let payloadMessages = messages
   if (typeof messages === 'string') {
     payloadMessages = [{ role: 'user', content: messages }]
@@ -44,8 +42,6 @@ export function chatStream(messages, options = {}) {
     messages: payloadMessages,
     enable_web_search: options.enableWebSearch || false
   }
-  
-  console.log('发送请求到:', url, '参数:', payload)
 
   const controller = new AbortController()
 
@@ -65,57 +61,31 @@ export function chatStream(messages, options = {}) {
 
     const reader = resp.body.getReader()
     const decoder = new TextDecoder('utf-8')
-    let buf = ''
+    let buffer = ''
 
     while (true) {
       const { done, value } = await reader.read()
       if (done) break
-      buf += decoder.decode(value, { stream: true })
-      // SSE lines end with \n\n; process available lines
-      let idx
-      while ((idx = buf.indexOf('\n\n')) !== -1) {
-        const chunk = buf.slice(0, idx)
-        buf = buf.slice(idx + 2)
-        // Each chunk may contain multiple lines; extract data: prefixes
-        for (const line of chunk.split(/\r?\n/)) {
-          const trimmed = line.trim()
-          if (!trimmed) continue
-          if (trimmed.startsWith('data:')) {
-            const payload = trimmed.slice('data:'.length).trim()
-            if (payload === '[DONE]') return
-            // try parse JSON, otherwise return text wrapper
-            try {
-              const obj = JSON.parse(payload)
-              yield { type: 'chunk', payload: obj }
-            } catch (e) {
-              yield { type: 'text', payload }
-            }
-          } else if (trimmed.startsWith('event:')) {
-            // ignore for now
-            continue
-          } else {
-            yield { type: 'text', payload: trimmed }
+
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n')
+
+      // 保留最后一行（可能不完整）
+      buffer = lines.pop() || ''
+
+      for (const line of lines) {
+        if (!line) continue
+        if (line.startsWith('data:')) {
+          // Preserve whitespace/newlines in content: do NOT trim payload.
+          const payload = line.slice('data:'.length).replace(/^\s+/, '').replace(/\r$/, '')
+          if (payload === '[DONE]') return
+          try {
+            const obj = JSON.parse(payload)
+            yield { type: 'chunk', payload: obj }
+          } catch (e) {
+            yield { type: 'text', payload }
           }
         }
-      }
-    }
-
-    // process any trailing buffer
-    if (buf.trim()) {
-      for (const line of buf.split(/\r?\n/)) {
-        const trimmed = line.trim()
-        if (!trimmed) continue
-        if (trimmed.startsWith('data:')) {
-          const payload = trimmed.slice('data:'.length).trim()
-          if (payload !== '[DONE]') {
-            try {
-              const obj = JSON.parse(payload)
-              yield { type: 'chunk', payload: obj }
-            } catch (e) {
-              yield { type: 'text', payload }
-            }
-          }
-        } else yield trimmed
       }
     }
   }

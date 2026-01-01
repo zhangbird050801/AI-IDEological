@@ -148,7 +148,7 @@ class CaseService(CRUDBase[IdeologicalCaseModel, IdeologicalCaseCreate, Ideologi
             "pages": (total + search_request.page_size - 1) // search_request.page_size
         }
 
-    async def update_case_rating(self, case_id: int, new_rating: int):
+    async def update_case_rating(self, case_id: int, new_rating: float):
         case = await IdeologicalCaseModel.get_or_none(id=case_id)
         if not case:
             raise HTTPException(status_code=404, detail="案例不存在")
@@ -442,10 +442,15 @@ async def get_my_cases_statistics(
 @router.post("/{case_id}/rate", summary="评分案例")
 async def rate_case(
     case_id: int,
-    rating: int = Query(..., ge=1, le=5, description="评分(1-5)"),
+    rating: float = Query(..., description="评分(1-5，步长0.5)"),
     comment: str = Query(None, description="评价内容"),
     current_user: User = Depends(AuthControl.is_authed)
 ):
+    if rating < 1 or rating > 5:
+        raise HTTPException(status_code=422, detail="评分必须在 1 到 5 之间")
+    doubled = rating * 2
+    if abs(doubled - round(doubled)) > 1e-9:
+        raise HTTPException(status_code=422, detail="评分步长必须为 0.5")
     case = await case_service.update_case_rating(case_id, rating)
     # TODO: 将评论保存到数据库（需要创建评论表）
     return IdeologicalCase.from_orm(case)
