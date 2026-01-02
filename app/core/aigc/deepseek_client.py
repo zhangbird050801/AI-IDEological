@@ -107,6 +107,10 @@ class DeepseekClient:
                         
                         if not line:
                             continue
+                        
+                        # Skip empty data markers
+                        if line == 'data:' or line == 'data: ':
+                            continue
                             
                         # Handle SSE format: "data: {...}"
                         if line.startswith('data:'):
@@ -131,15 +135,17 @@ class DeepseekClient:
                                         yield content
                                         
                             except json.JSONDecodeError as e:
-                                # Log parsing error but continue
-                                print(f"⚠️ JSON解析失败: {data_part[:100]}... 错误: {e}")
+                                # Log parsing error but don't output the raw data
+                                print(f"⚠️ SSE JSON解析失败: {e}")
                                 continue
                         else:
                             # Try to parse as JSON directly (non-SSE format)
+                            # This handles cases where the stream doesn't use SSE format
                             try:
                                 import json
                                 chunk_data = json.loads(line)
                                 
+                                # Extract content from delta
                                 if 'choices' in chunk_data and len(chunk_data['choices']) > 0:
                                     choice = chunk_data['choices'][0]
                                     delta = choice.get('delta', {})
@@ -149,5 +155,6 @@ class DeepseekClient:
                                         yield content
                                         
                             except json.JSONDecodeError:
-                                # Not JSON, skip
-                                continue
+                                # Not JSON, skip silently
+                                # Don't output raw text to avoid leaking JSON chunks
+                                pass
