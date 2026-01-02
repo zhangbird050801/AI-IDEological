@@ -120,23 +120,31 @@ class DeepseekClient:
                             if data_part == '[DONE]':
                                 return
                             
-                            # Parse JSON and extract content
+                            # Parse JSON and extract content - NEVER output raw JSON
                             try:
                                 import json
                                 chunk_data = json.loads(data_part)
                                 
                                 # Extract content from delta
-                                if 'choices' in chunk_data and len(chunk_data['choices']) > 0:
-                                    choice = chunk_data['choices'][0]
-                                    delta = choice.get('delta', {})
-                                    content = delta.get('content', '')
-                                    
-                                    if content:
-                                        yield content
+                                if isinstance(chunk_data, dict) and 'choices' in chunk_data:
+                                    choices = chunk_data.get('choices', [])
+                                    if choices and len(choices) > 0:
+                                        choice = choices[0]
+                                        delta = choice.get('delta', {})
+                                        content = delta.get('content')
+                                        
+                                        # Only yield if content is a non-empty string
+                                        if content and isinstance(content, str):
+                                            yield content
                                         
                             except json.JSONDecodeError as e:
-                                # Log parsing error but don't output the raw data
-                                print(f"⚠️ SSE JSON解析失败: {e}")
+                                # Log parsing error but NEVER output the raw data
+                                print(f"⚠️ SSE JSON解析失败: {e}, 数据: {data_part[:100]}")
+                                # Skip this chunk completely
+                                continue
+                            except Exception as e:
+                                # Catch any other errors and skip
+                                print(f"⚠️ 处理SSE数据时出错: {e}")
                                 continue
                         else:
                             # Try to parse as JSON directly (non-SSE format)
@@ -146,15 +154,21 @@ class DeepseekClient:
                                 chunk_data = json.loads(line)
                                 
                                 # Extract content from delta
-                                if 'choices' in chunk_data and len(chunk_data['choices']) > 0:
-                                    choice = chunk_data['choices'][0]
-                                    delta = choice.get('delta', {})
-                                    content = delta.get('content', '')
-                                    
-                                    if content:
-                                        yield content
+                                if isinstance(chunk_data, dict) and 'choices' in chunk_data:
+                                    choices = chunk_data.get('choices', [])
+                                    if choices and len(choices) > 0:
+                                        choice = choices[0]
+                                        delta = choice.get('delta', {})
+                                        content = delta.get('content')
+                                        
+                                        # Only yield if content is a non-empty string
+                                        if content and isinstance(content, str):
+                                            yield content
                                         
                             except json.JSONDecodeError:
                                 # Not JSON, skip silently
-                                # Don't output raw text to avoid leaking JSON chunks
+                                # NEVER output raw text to avoid leaking JSON chunks
+                                pass
+                            except Exception:
+                                # Catch any other errors and skip
                                 pass

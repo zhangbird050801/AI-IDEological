@@ -281,7 +281,7 @@ class AIGCClient:
                             if data_part == "[DONE]":
                                 return
                             
-                            # 解析 JSON 并提取 content
+                            # 解析 JSON 并提取 content - NEVER output raw JSON
                             try:
                                 import json
                                 chunk_data = json.loads(data_part)
@@ -289,15 +289,20 @@ class AIGCClient:
                                 if isinstance(chunk_data, dict) and "choices" in chunk_data:
                                     for choice in chunk_data.get("choices", []):
                                         delta = choice.get("delta", {})
-                                        content = delta.get("content", "")
-                                        if content:
+                                        content = delta.get("content")
+                                        # Only yield if content is a non-empty string
+                                        if content and isinstance(content, str):
                                             yield content
-                                else:
-                                    # 如果不是标准格式，直接输出
-                                    yield data_part
-                            except json.JSONDecodeError:
-                                # 如果不是 JSON，直接输出
-                                yield data_part
+                                # If not standard format, skip it (don't output raw JSON)
+                            except json.JSONDecodeError as e:
+                                # Log parsing error but NEVER output the raw data
+                                print(f"⚠️ SSE JSON解析失败: {e}, 数据: {data_part[:100]}")
+                                # Skip this chunk completely
+                                continue
+                            except Exception as e:
+                                # Catch any other errors and skip
+                                print(f"⚠️ 处理SSE数据时出错: {e}")
+                                continue
                         else:
                             # 非 data: 开头的行，尝试解析
                             try:
@@ -306,13 +311,17 @@ class AIGCClient:
                                 if isinstance(chunk_data, dict) and "choices" in chunk_data:
                                     for choice in chunk_data.get("choices", []):
                                         delta = choice.get("delta", {})
-                                        content = delta.get("content", "")
-                                        if content:
+                                        content = delta.get("content")
+                                        # Only yield if content is a non-empty string
+                                        if content and isinstance(content, str):
                                             yield content
-                                else:
-                                    yield line
+                                # If not standard format, skip it (don't output raw JSON)
                             except json.JSONDecodeError:
-                                yield line
+                                # Not JSON, skip silently (don't output raw text)
+                                pass
+                            except Exception:
+                                # Catch any other errors and skip
+                                pass
 
     async def upload_file(self, file_path: str, purpose: str = "file-extract", timeout: float = None) -> Dict[str, Any]:
         url = self._build_url("/files")
