@@ -246,7 +246,7 @@ class UserFavorites(UserFavoritesBase):
 class UserRatingBase(BaseModel):
     target_type: str = Field(..., description="评分类型")
     target_id: int = Field(..., description="目标ID")
-    rating: int = Field(..., ge=1, le=5, description="评分")
+    rating: float = Field(..., ge=1, le=5, description="评分(1-5，支持0.5步长)")
     comment: Optional[str] = Field(None, description="评论")
 
 

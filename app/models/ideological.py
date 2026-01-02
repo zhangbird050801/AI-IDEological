@@ -123,7 +123,7 @@ class UserRating(BaseModel, TimestampMixin):
     """用户评分"""
     target_type = fields.CharField(max_length=50, description="评分类型(case/template)", index=True)
     target_id = fields.IntField(description="目标ID", index=True)
-    rating = fields.IntField(description="评分(1-5)", index=True)
+    rating = fields.FloatField(description="评分(1-5，支持0.5步长)", index=True)
     comment = fields.TextField(null=True, description="评论")
 
     # 关系字段

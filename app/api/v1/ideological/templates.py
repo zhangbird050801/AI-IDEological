@@ -76,19 +76,54 @@ class TemplateService(CRUDBase[PromptTemplateModel, PromptTemplateCreate, Prompt
             "pages": (total + search_request.page_size - 1) // search_request.page_size
         }
 
-    async def update_template_rating(self, template_id: int, new_rating: int):
+    async def update_template_rating(self, template_id: int, new_rating: int, user_id: int, comment: str = None):
         template = await PromptTemplateModel.get_or_none(id=template_id)
         if not template:
             raise HTTPException(status_code=404, detail="模板不存在")
 
-        # 更新评分
-        current_rating_total = template.rating * template.rating_count
-        new_rating_count = template.rating_count + 1
-        new_average_rating = (current_rating_total + new_rating) / new_rating_count
+        # 检查用户是否已经评分过
+        from app.models.ideological import UserRating
+        existing_rating = await UserRating.get_or_none(
+            user_id=user_id,
+            target_type="template",
+            target_id=template_id
+        )
 
+        if existing_rating:
+            # 用户修改评分，需要重新计算平均分
+            old_rating = existing_rating.rating
+            current_rating_total = template.rating * template.rating_count
+            # 减去旧评分，加上新评分
+            new_rating_total = current_rating_total - old_rating + new_rating
+            new_average_rating = new_rating_total / template.rating_count
+            
+            # 更新用户评分记录
+            existing_rating.rating = float(new_rating)
+            existing_rating.comment = comment
+            await existing_rating.save()
+        else:
+            # 新评分
+            current_rating_total = template.rating * template.rating_count
+            new_rating_count = template.rating_count + 1
+            new_average_rating = (current_rating_total + new_rating) / new_rating_count
+            
+            # 创建用户评分记录
+            await UserRating.create(
+                user_id=user_id,
+                target_type="template",
+                target_id=template_id,
+                rating=float(new_rating),
+                comment=comment
+            )
+            
+            # 更新评分人数
+            await template.update_from_dict({
+                "rating_count": new_rating_count
+            })
+
+        # 更新模板的平均评分
         await template.update_from_dict({
-            "rating": round(new_average_rating, 2),
-            "rating_count": new_rating_count
+            "rating": round(new_average_rating, 2)
         })
         await template.save()
 
@@ -307,9 +342,10 @@ async def get_my_templates_statistics(
 async def rate_template(
     template_id: int,
     rating: int = Query(..., ge=1, le=5, description="评分(1-5)"),
+    comment: str = Query(None, description="评价内容"),
     current_user: User = Depends(AuthControl.is_authed)
 ):
-    template = await template_service.update_template_rating(template_id, rating)
+    template = await template_service.update_template_rating(template_id, rating, current_user.id, comment)
     return PromptTemplate.model_validate(template)
 
 @router.post("/{template_id}/use", summary="使用模板（增加使用次数）")

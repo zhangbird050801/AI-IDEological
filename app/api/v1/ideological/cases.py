@@ -148,20 +148,54 @@ class CaseService(CRUDBase[IdeologicalCaseModel, IdeologicalCaseCreate, Ideologi
             "pages": (total + search_request.page_size - 1) // search_request.page_size
         }
 
-    async def update_case_rating(self, case_id: int, new_rating: float):
+    async def update_case_rating(self, case_id: int, new_rating: float, user_id: int, comment: str = None):
         case = await IdeologicalCaseModel.get_or_none(id=case_id)
         if not case:
             raise HTTPException(status_code=404, detail="案例不存在")
 
-        # 更新评分
-        current_rating_total = case.rating * case.rating_count
-        new_rating_count = case.rating_count + 1
-        new_average_rating = (current_rating_total + new_rating) / new_rating_count
+        # 检查用户是否已经评分过
+        from app.models.ideological import UserRating
+        existing_rating = await UserRating.get_or_none(
+            user_id=user_id,
+            target_type="case",
+            target_id=case_id
+        )
 
+        if existing_rating:
+            # 用户修改评分，需要重新计算平均分
+            old_rating = existing_rating.rating
+            current_rating_total = case.rating * case.rating_count
+            # 减去旧评分，加上新评分
+            new_rating_total = current_rating_total - old_rating + new_rating
+            new_average_rating = new_rating_total / case.rating_count
+            
+            # 更新用户评分记录
+            existing_rating.rating = new_rating
+            existing_rating.comment = comment
+            await existing_rating.save()
+        else:
+            # 新评分
+            current_rating_total = case.rating * case.rating_count
+            new_rating_count = case.rating_count + 1
+            new_average_rating = (current_rating_total + new_rating) / new_rating_count
+            
+            # 创建用户评分记录
+            await UserRating.create(
+                user_id=user_id,
+                target_type="case",
+                target_id=case_id,
+                rating=new_rating,
+                comment=comment
+            )
+            
+            # 更新评分人数
+            await case.update_from_dict({
+                "rating_count": new_rating_count
+            })
+
+        # 更新案例的平均评分
         await case.update_from_dict({
-            "rating": round(new_average_rating, 2),
-            "rating_count": new_rating_count,
-            "usage_count": case.usage_count + 1
+            "rating": round(new_average_rating, 2)
         })
         await case.save()
 
@@ -238,6 +272,8 @@ async def get_case(
     case_id: int,
     current_user: User = Depends(AuthControl.is_authed)
 ):
+    from app.models.ideological import UserRating
+    
     case = await IdeologicalCaseModel.get_or_none(id=case_id).prefetch_related('author')
     if not case:
         raise HTTPException(status_code=404, detail="案例不存在")
@@ -256,6 +292,15 @@ async def get_case(
     result["is_favorited"] = await UserFavorites.filter(
         target_type="case", target_id=case_id, user_id=current_user.id
     ).exists()
+    
+    # 当前用户的评分信息
+    user_rating = await UserRating.get_or_none(
+        target_type="case", 
+        target_id=case_id, 
+        user_id=current_user.id
+    )
+    result["user_rating"] = user_rating.rating if user_rating else None
+    result["user_comment"] = user_rating.comment if user_rating else None
 
     return result
 
@@ -451,8 +496,7 @@ async def rate_case(
     doubled = rating * 2
     if abs(doubled - round(doubled)) > 1e-9:
         raise HTTPException(status_code=422, detail="评分步长必须为 0.5")
-    case = await case_service.update_case_rating(case_id, rating)
-    # TODO: 将评论保存到数据库（需要创建评论表）
+    case = await case_service.update_case_rating(case_id, rating, current_user.id, comment)
     return IdeologicalCase.from_orm(case)
 
 @router.get("/chapters/list", summary="获取软件工程章节列表")
