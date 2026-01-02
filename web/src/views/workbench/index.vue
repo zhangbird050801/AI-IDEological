@@ -44,16 +44,14 @@
 
       <div class="dashboard-charts">
         <div class="chart-card">
-          <div class="chart-title">生成任务甘特图</div>
-          <div class="chart-sub">最近 8 条生成记录</div>
-          <div v-if="ganttItems.length === 0" class="chart-empty">暂无数据</div>
-          <div v-else class="gantt-list">
-            <div v-for="item in ganttItems" :key="item.id" class="gantt-row">
-              <div class="gantt-label">{{ item.label }}</div>
-              <div class="gantt-bar-wrap">
-                <div class="gantt-bar" :style="{ width: `${item.percent}%` }"></div>
-              </div>
-              <div class="gantt-meta">{{ item.duration }}s</div>
+          <div class="chart-title">最近生成记录</div>
+          <div class="chart-sub">最近 8 条生成活动</div>
+          <div v-if="recentActivities.length === 0" class="chart-empty">暂无数据</div>
+          <div v-else class="activity-list">
+            <div v-for="item in recentActivities" :key="item.id" class="activity-item">
+              <div class="activity-dot" :style="{ background: item.color }"></div>
+              <div class="activity-label">{{ item.label }}</div>
+              <div class="activity-time">{{ item.time }}</div>
             </div>
           </div>
         </div>
@@ -161,11 +159,10 @@ const dashboardStats = reactive({
   templatesTotal: 0,
   systemTemplates: 0,
   historyTotal: 0,
-  avgGenerationSeconds: 0,
   recentGenerations: 0,
 })
 
-const ganttItems = ref([])
+const recentActivities = ref([])
 const pieSegments = ref([])
 const trendSeries = ref([])
 const trendLabels = ref([])
@@ -208,11 +205,11 @@ const dashboardPanels = computed(() => [
   },
   {
     id: 3,
-    label: '平均生成耗时',
-    value: `${dashboardStats.avgGenerationSeconds}s`,
-    badge: '近7日',
-    sub: `生成 ${dashboardStats.recentGenerations}`,
-    footer: '生成历史',
+    label: '生成历史',
+    value: `${dashboardStats.historyTotal}`,
+    badge: 'AIGC',
+    sub: `近7日生成 ${dashboardStats.recentGenerations}`,
+    footer: 'AI生成',
     trend: `${dashboardStats.recentGenerations ? '▲' : ''}`,
     series: buildSeriesFromTotal(dashboardStats.recentGenerations),
     tone: 'tone-rose',
@@ -295,9 +292,9 @@ function buildTrendFromHistory(items, days = 7) {
   trendSeries.value = counts
 }
 
-function buildGantt(items) {
+function buildRecentActivities(items) {
   if (!items.length) {
-    ganttItems.value = []
+    recentActivities.value = []
     return
   }
   const typeLabels = {
@@ -313,17 +310,31 @@ function buildGantt(items) {
     evaluation_design: '评价与考核设计',
     practice: '实践练习',
   }
-  const durations = items.map((item) => item.generation_time || 0)
-  const max = Math.max(...durations, 1)
-  ganttItems.value = items.map((item) => {
-    const durationMs = item.generation_time || 0
-    const label = typeLabels[item.generation_type] || item.generation_type || '生成任务'
+  const typeColors = {
+    aigc_chat: '#3b82f6',
+    case_generation: '#10b981',
+    discussion_generation: '#8b5cf6',
+    thinking_generation: '#f59e0b',
+    content_optimization: '#ec4899',
+    teaching_design: '#0ea5e9',
+    knowledge_point: '#fbbf24',
+    project_design: '#ef4444',
+    knowledge_explanation: '#22c55e',
+    evaluation_design: '#a855f7',
+    practice: '#f97316',
+  }
+  
+  recentActivities.value = items.map((item) => {
+    const type = item.generation_type || 'aigc_chat'
+    const color = typeColors[type] || '#64748b'
+    const label = typeLabels[type] || item.generation_type || '生成任务'
+    const timeStr = item.created_at ? item.created_at.slice(5, 16).replace('T', ' ') : ''
+    
     return {
       id: item.id,
       label,
-      duration: (durationMs / 1000).toFixed(1),
-      percent: Math.min(100, Math.round((durationMs / max) * 100)),
-      time: item.created_at ? item.created_at.slice(5, 16).replace('T', ' ') : '',
+      color,
+      time: timeStr,
     }
   })
 }
@@ -368,14 +379,10 @@ async function fetchWorkbenchData() {
     dashboardStats.historyTotal = historyData.total
 
     const historyItems = historyData.items || []
-    const avgMs = historyItems.length
-      ? historyItems.reduce((sum, item) => sum + (item.generation_time || 0), 0) / historyItems.length
-      : 0
-    dashboardStats.avgGenerationSeconds = avgMs ? (avgMs / 1000).toFixed(1) : '0.0'
     dashboardStats.recentGenerations = countRecent(historyItems)
 
     buildTrendFromHistory(historyItems)
-    buildGantt(historyItems.slice(0, 8))
+    buildRecentActivities(historyItems.slice(0, 8))
 
     const themeStatsRaw = themeStatsRes?.data || themeStatsRes || {}
     const themeListRaw = themeListRes?.data || themeListRes || []
@@ -577,56 +584,52 @@ onMounted(() => {
   font-size: 12px;
 }
 
-.gantt-list {
+.activity-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
-.gantt-row {
+.activity-item {
   display: grid;
-  grid-template-columns: 120px 1fr 52px;
+  grid-template-columns: 8px 1fr auto;
   align-items: center;
   gap: 10px;
-  font-size: 12px;
+  padding: 6px 0;
+  font-size: 13px;
 }
 
-.gantt-label {
+.activity-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.activity-label {
   color: rgba(15, 23, 42, 0.75);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.gantt-bar-wrap {
-  height: 10px;
-  background: rgba(15, 23, 42, 0.06);
-  border-radius: 999px;
-  position: relative;
-  overflow: hidden;
-}
-
-.gantt-bar {
-  height: 100%;
-  background: linear-gradient(90deg, rgba(52, 211, 153, 0.9), rgba(14, 165, 233, 0.9));
-  border-radius: inherit;
-}
-
-.gantt-meta {
-  text-align: right;
-  color: rgba(15, 23, 42, 0.6);
+.activity-time {
+  font-size: 12px;
+  color: rgba(15, 23, 42, 0.5);
+  white-space: nowrap;
 }
 
 .pie-wrap {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 16px;
   flex: 1;
 }
 
 .pie {
-  width: 120px;
-  height: 120px;
+  width: 160px;
+  height: 160px;
   border-radius: 50%;
   position: relative;
 }
@@ -634,7 +637,7 @@ onMounted(() => {
 .pie::after {
   content: '';
   position: absolute;
-  inset: 18px;
+  inset: 24px;
   background: #fff;
   border-radius: 50%;
   box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.04);

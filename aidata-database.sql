@@ -11,7 +11,7 @@
  Target Server Version : 80036 (8.0.36)
  File Encoding         : 65001
 
- Date: 02/01/2026 13:38:25
+ Date: 02/01/2026 15:02:50
 */
 
 SET NAMES utf8mb4;
@@ -27,7 +27,7 @@ CREATE TABLE `aerich`  (
   `app` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
   `content` json NOT NULL,
   PRIMARY KEY (`id`) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 18 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = DYNAMIC;
+) ENGINE = InnoDB AUTO_INCREMENT = 20 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Table structure for api
@@ -136,48 +136,6 @@ CREATE TABLE `courses`  (
   INDEX `idx_is_active`(`is_active` ASC) USING BTREE,
   INDEX `idx_created_by`(`created_by_id` ASC) USING BTREE
 ) ENGINE = InnoDB AUTO_INCREMENT = 3 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '课程表' ROW_FORMAT = DYNAMIC;
-
--- ----------------------------
--- Table structure for dept
--- ----------------------------
-DROP TABLE IF EXISTS `dept`;
-CREATE TABLE `dept`  (
-  `id` bigint NOT NULL AUTO_INCREMENT,
-  `created_at` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
-  `updated_at` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
-  `name` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL COMMENT '部门名称',
-  `desc` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '备注',
-  `is_deleted` tinyint(1) NOT NULL DEFAULT 0 COMMENT '软删除标记',
-  `order` int NOT NULL DEFAULT 0 COMMENT '排序',
-  `parent_id` int NOT NULL DEFAULT 0 COMMENT '父部门ID',
-  PRIMARY KEY (`id`) USING BTREE,
-  UNIQUE INDEX `name`(`name` ASC) USING BTREE,
-  INDEX `idx_dept_created_4b11cf`(`created_at` ASC) USING BTREE,
-  INDEX `idx_dept_updated_0c0bd1`(`updated_at` ASC) USING BTREE,
-  INDEX `idx_dept_name_c2b9da`(`name` ASC) USING BTREE,
-  INDEX `idx_dept_is_dele_466228`(`is_deleted` ASC) USING BTREE,
-  INDEX `idx_dept_order_ddabe1`(`order` ASC) USING BTREE,
-  INDEX `idx_dept_parent__a71a57`(`parent_id` ASC) USING BTREE
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = DYNAMIC;
-
--- ----------------------------
--- Table structure for deptclosure
--- ----------------------------
-DROP TABLE IF EXISTS `deptclosure`;
-CREATE TABLE `deptclosure`  (
-  `id` bigint NOT NULL AUTO_INCREMENT,
-  `created_at` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
-  `updated_at` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
-  `ancestor` int NOT NULL COMMENT '父代',
-  `descendant` int NOT NULL COMMENT '子代',
-  `level` int NOT NULL DEFAULT 0 COMMENT '深度',
-  PRIMARY KEY (`id`) USING BTREE,
-  INDEX `idx_deptclosure_created_96f6ef`(`created_at` ASC) USING BTREE,
-  INDEX `idx_deptclosure_updated_41fc08`(`updated_at` ASC) USING BTREE,
-  INDEX `idx_deptclosure_ancesto_fbc4ce`(`ancestor` ASC) USING BTREE,
-  INDEX `idx_deptclosure_descend_2ae8b1`(`descendant` ASC) USING BTREE,
-  INDEX `idx_deptclosure_level_ae16b2`(`level` ASC) USING BTREE
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Table structure for generation_history
@@ -405,7 +363,7 @@ CREATE TABLE `prompt_assistant_template`  (
   INDEX `idx_prompt_assi_usage_c_3f52be`(`usage_count` ASC) USING BTREE,
   INDEX `idx_prompt_assi_rating_720191`(`rating` ASC) USING BTREE,
   INDEX `idx_prompt_assi_rating__66e1be`(`rating_count` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 1345 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '提示词助手预置模板' ROW_FORMAT = DYNAMIC;
+) ENGINE = InnoDB AUTO_INCREMENT = 1399 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '提示词助手预置模板' ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Table structure for prompt_template
@@ -548,7 +506,6 @@ CREATE TABLE `user`  (
   `is_active` tinyint(1) NOT NULL DEFAULT 1 COMMENT '是否激活',
   `is_superuser` tinyint(1) NOT NULL DEFAULT 0 COMMENT '是否为超级管理员',
   `last_login` datetime(6) NULL DEFAULT NULL COMMENT '最后登录时间',
-  `dept_id` int NULL DEFAULT NULL COMMENT '部门ID',
   PRIMARY KEY (`id`) USING BTREE,
   UNIQUE INDEX `username`(`username` ASC) USING BTREE,
   UNIQUE INDEX `email`(`email` ASC) USING BTREE,
@@ -560,8 +517,7 @@ CREATE TABLE `user`  (
   INDEX `idx_user_phone_4e3ecc`(`phone` ASC) USING BTREE,
   INDEX `idx_user_is_acti_83722a`(`is_active` ASC) USING BTREE,
   INDEX `idx_user_is_supe_b8a218`(`is_superuser` ASC) USING BTREE,
-  INDEX `idx_user_last_lo_af118a`(`last_login` ASC) USING BTREE,
-  INDEX `idx_user_dept_id_d4490b`(`dept_id` ASC) USING BTREE
+  INDEX `idx_user_last_lo_af118a`(`last_login` ASC) USING BTREE
 ) ENGINE = InnoDB AUTO_INCREMENT = 3 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
@@ -595,7 +551,7 @@ CREATE TABLE `user_rating`  (
   `updated_at` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
   `target_type` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL COMMENT '评分类型(case/template)',
   `target_id` int NOT NULL COMMENT '目标ID',
-  `rating` int NOT NULL COMMENT '评分(1-5)',
+  `rating` double NOT NULL COMMENT '评分(1-5，支持0.5步长)',
   `comment` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL COMMENT '评论',
   `user_id` bigint NULL DEFAULT NULL,
   PRIMARY KEY (`id`) USING BTREE,
@@ -606,7 +562,7 @@ CREATE TABLE `user_rating`  (
   INDEX `idx_user_rating_target__40e47a`(`target_id` ASC) USING BTREE,
   INDEX `idx_user_rating_rating_b9c77b`(`rating` ASC) USING BTREE,
   CONSTRAINT `fk_user_rat_user_689bc080` FOREIGN KEY (`user_id`) REFERENCES `user` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '用户评分' ROW_FORMAT = DYNAMIC;
+) ENGINE = InnoDB AUTO_INCREMENT = 3 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '用户评分' ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Table structure for user_role
